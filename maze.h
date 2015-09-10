@@ -314,7 +314,7 @@ public:
   }
 
   //create neural net inputs from sensors
-  void generate_neural_inputs(double* inputs)
+  void generate_neural_inputs(float* inputs)
   {
     //bias
     inputs[0] = (1.0);

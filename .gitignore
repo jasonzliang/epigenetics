@@ -29,3 +29,6 @@
 
 *.tags
 *.tags_*
+*.png
+build
+
