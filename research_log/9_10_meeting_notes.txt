@@ -1,0 +1,6 @@
+-try modulation
+-run multiple trials
+-during each trial count activity
+-if trial is successful, add activity to cumulative counter otherwise subtract
+-inherit cumulative counter
+-cumulative counter modulates output
