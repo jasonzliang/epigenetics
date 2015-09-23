@@ -10,6 +10,7 @@ namespace bp = boost::python;
 namespace np = boost::numpy;
 
 Network *net = NULL;
+bool verbose = false;
 
 //execute a timestep of the maze simulation evaluation
 double MazesimStep(Environment* _env, Network * _net)
@@ -29,7 +30,7 @@ double MazesimStep(Environment* _env, Network * _net)
 int main()
 {
 	Environment *env = new Environment("medium_maze.txt");
-	Network *net = new Network(11, 10, 2, false);
+	Network *net = new Network(11, 8, 2, false);
 
 	const int timesteps = 400;
 	double fitness = 0.0;
@@ -50,23 +51,23 @@ int main()
 	return fitness;
 }
 
-void SetUp()
+void SetUp(const bool _acflag, const bool _recurrent)
 {
 	if (net)
 		delete net;
-	net = new Network(11, 10, 2, false);
+	net = new Network(11, 8, 2, _acflag, _recurrent);
 }
 
-void SetACFlag(const bool _value)
+void SetVerbosity(const bool _verbose)
 {
-	if (net)
-	{
-		net->useAC = _value;
-	}
+	verbose = _verbose;
 }
 
 float EvalNetwork(np::ndarray &_genes, np::ndarray &_ac)
 {
+	if (!net)
+		return -1;
+
 	net->SetWeightAndActivityCounter(_genes, _ac);
 	Environment *env = new Environment("medium_maze.txt");
 
@@ -77,7 +78,8 @@ float EvalNetwork(np::ndarray &_genes, np::ndarray &_ac)
 	{
 		fitness += MazesimStep(env, net);
 	}
-
+	if (verbose)
+		env->display();
 	//calculate fitness of individual as closeness to target
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
@@ -97,11 +99,27 @@ np::ndarray ReturnActivityCounter()
 	return result;
 }
 
+int GetNetworkWeightCount()
+{
+	if (!net)
+		return -1;
+	return net->numWeights;
+}
+
+int GetNetworkHiddenUnitCount()
+{
+	if (!net)
+		return -1;
+	return net->numHidden;
+}
+
 BOOST_PYTHON_MODULE(maze_lib)
 {
 	np::initialize();
 	bp::def("SetUp", SetUp);
+	bp::def("SetVerbosity", SetVerbosity);
 	bp::def("EvalNetwork", EvalNetwork);
-	bp::def("SetACFlag", SetACFlag);
 	bp::def("ReturnActivityCounter", ReturnActivityCounter);
+	bp::def("GetNetworkWeightCount", GetNetworkWeightCount);
+	bp::def("GetNetworkHiddenUnitCount", GetNetworkHiddenUnitCount);
 }

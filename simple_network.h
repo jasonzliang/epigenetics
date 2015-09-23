@@ -21,7 +21,8 @@ void reseed(int val)
 class Network
 {
 public:
-	const int numInput, numHidden, numOutput, numWeights;
+	int numInput, numHidden, numOutput;
+	int numWeights;
 	bool useAC, recurrent;
 	float *weightArray, *inputUnits, *hiddenUnits, *outputUnits, *recurrentUnits;
 	double *activityCounter;
@@ -32,10 +33,15 @@ public:
 		numInput(_i),
 		numHidden(_h),
 		numOutput(_o),
-		numWeights((_i + _o) * _h),
 		useAC(_useAC),
 		recurrent(_recurrent)
 	{
+		if (this->recurrent)
+		{
+			this->numInput += this->numHidden;
+		}
+		this->numWeights = (this->numInput + this->numOutput) * this->numHidden;
+
 		this->inputUnits = new float[this->numInput];
 		this->hiddenUnits = new float[this->numHidden];
 		this->outputUnits = new float[this->numOutput];
@@ -173,7 +179,14 @@ public:
 					       this->inputUnits[j];
 				}
 				this->hiddenUnits[i] = this->TanH(sum);
-				this->
+			}
+		}
+
+		if (this->recurrent)
+		{
+			for (int i = (this->numInput - this->numHidden); i < this->numInput; ++i)
+			{
+				this->inputUnits[i] = this->hiddenUnits[i];
 			}
 		}
 
@@ -185,13 +198,15 @@ public:
 			this->UpdateActivityCounter();
 		}
 
+		const int offset = this->numHidden * this->numInput;
 		for (int i = 0; i < this->numOutput; ++i)
 		{
 			sum = 0.0;
 			for (int j = 0; j < this->numHidden; ++j)
 			{
-				sum += this->weightArray[j + i * this->numHidden]
+				sum += this->weightArray[j + (i * this->numHidden) + offset]
 				       * this->hiddenUnits[j];
+				// std::cout << j + (i * this->numHidden) + offset << std::endl;
 			}
 			this->outputUnits[i] = this->TanH(sum);
 		}

@@ -1,23 +1,25 @@
 #!/usr/bin/python
 
 import numpy as np
+import time
 import random, math, sys, os
 from scipy.stats import cauchy
 import matplotlib.pyplot as plt
 import maze_lib
 
 np.set_printoptions(precision=4, suppress=True, formatter={'all':lambda x: str(x) + ','})
-maze_lib.SetUp()
-maze_lib.SetACFlag(False)
-numI = 11; numH = 10; numO = 2
-network_genome_size = numI*numH + numH*numO
+maze_lib.SetUp(False, False)
 
 class genetic(object):
-  def __init__(self, popMax=1000, parameters=[0.2, 0.3, 0.5, 0.5, 1.0, 0.15],
+  def __init__(self, genomeSize, hiddenSize, popMax=1000, 
+               parameters=[0.2, 0.3, 0.5, 0.5, 1.0, 0.15],
                maxEvals=22000, useScaling=False, **keywords):
+    print "genome size: ", genomeSize
+    print "hidden size: ", hiddenSize
     self.useScaling = useScaling
     self.popMax = popMax
-    self.genomeSize = network_genome_size
+    self.genomeSize = genomeSize
+    self.hiddenSize = hiddenSize
     self.maxEvals = maxEvals
 
     self.setParameters(parameters)    
@@ -34,7 +36,7 @@ class genetic(object):
     self.numGen = self.numEval = 0
     self.fitness = np.zeros(self.popSize) + 1e-12
     self.population = np.random.uniform(-self.initRange, self.initRange, (self.popSize, self.genomeSize))
-    self.activityCounter = np.ones((self.popSize, numH)) * 0.00001
+    self.activityCounter = np.ones((self.popSize, self.hiddenSize)) * 0.00001
 
   def isTerminal(self):
     return self.numEval > self.maxEvals
@@ -147,29 +149,37 @@ class genetic(object):
       print "best activity counter: " + str(bestAC)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
+def testMulti():
+  testGA(useAC=False, recurrent=False)
+  testGA(useAC=False, recurrent=True)
+  testGA(useAC=True, recurrent=False)
+  testGA(useAC=True, recurrent=True)
 
-def testGA(nGen=500, outputName="ac", useAC=True):
-  maze_lib.SetACFlag(useAC)
+def testGA(nGen=500, outputName="results", useAC=False, recurrent=True):
+  maze_lib.SetUp(useAC, recurrent)
   data = []
-  ga = genetic(maxEvals=1e308) 
+  ga = genetic(genomeSize=maze_lib.GetNetworkWeightCount(),
+    hiddenSize=maze_lib.GetNetworkHiddenUnitCount(),
+    maxEvals=1e308) 
   for i in xrange(nGen):
     ga.step()
     if ga.numGen % 10 == 0:
       data.append(ga.printStats(printGenome=False))
-  ga.reset()
+  ga.printStats(printGenome=True)
 
   gen = [x[0] for x in data]
   bestFit = [x[2] for x in data]
   meanFit = [x[3] for x in data]
 
+  plt.clf()
   plt.plot(gen, bestFit, label="best fit")
   plt.plot(gen, meanFit, label="avg fit")
   plt.xlabel("generation")
   plt.ylabel("fitness")
   plt.legend(loc='upper left')
   plt.grid()
-  plt.savefig(outputName + ".png")
+  plt.savefig(outputName + "_ac" + str(useAC) + "_recur" + str(recurrent) + ".png")
   
 if __name__ == "__main__":
-  testGA()
+  testMulti()
     
