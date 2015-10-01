@@ -271,6 +271,10 @@ public:
   Environment(const char* filename)
   {
     ifstream inpfile(filename);
+    if (!inpfile.is_open())
+    {
+      cout << filename << " is invalid path!" << endl;
+    }
     int num_lines;
     inpfile >> num_lines; //read in how many line segments
     hero.location.fromfile(inpfile); //read initial location

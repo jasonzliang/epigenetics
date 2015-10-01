@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <boost/python.hpp>
 #include <numpy.hpp>
@@ -11,6 +12,9 @@ namespace np = boost::numpy;
 
 Network *net = NULL;
 bool verbose = false;
+char maze_path[500]
+  = "/home/jason/Desktop/Dropbox/fall2015/epigenetics/easy_maze.txt";
+
 
 //execute a timestep of the maze simulation evaluation
 double MazesimStep(Environment* _env, Network * _net)
@@ -29,8 +33,9 @@ double MazesimStep(Environment* _env, Network * _net)
 
 int main()
 {
-	Environment *env = new Environment("medium_maze.txt");
-	Network *net = new Network(11, 8, 2, false);
+	Environment *env = new Environment(
+	  "/home/jason/Desktop/Dropbox/fall2015/epigenetics/easy_maze.txt");
+	Network *net = new Network(11, 8, 2, false, false);
 
 	const int timesteps = 400;
 	double fitness = 0.0;
@@ -39,7 +44,9 @@ int main()
 	{
 		fitness += MazesimStep(env, net);
 	}
-
+	// env->display();
+	cout << "final location: " << env->hero.location.x << " " <<
+	     env->hero.location.y << endl;
 	//calculate fitness of individual as closeness to target
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
@@ -63,13 +70,13 @@ void SetVerbosity(const bool _verbose)
 	verbose = _verbose;
 }
 
-float EvalNetwork(np::ndarray &_genes, np::ndarray &_ac)
+bp::tuple EvalNetwork(np::ndarray &_genes, np::ndarray &_ac,
+                  double successThres = 295.0)
 {
 	if (!net)
-		return -1;
-
+		return bp::make_tuple();
 	net->SetWeightAndActivityCounter(_genes, _ac);
-	Environment *env = new Environment("medium_maze.txt");
+	Environment *env = new Environment(maze_path);
 
 	const int timesteps = 400;
 	double fitness = 0.0;
@@ -83,8 +90,24 @@ float EvalNetwork(np::ndarray &_genes, np::ndarray &_ac)
 	//calculate fitness of individual as closeness to target
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
+
+	// if trial is successful, activity counter gets larger, otherwise gets
+	// smaller
+	if (net->useAC)
+	{
+		double base = 0.999;
+		if (env->hero.location.y > 70.0 && fitness > successThres)
+			base = 1.001;
+		for (int i = 0; i < net->numHidden; ++i)
+		{
+			net->activityCounter[i] *= pow(base, net->tempActivityCounter[i]);
+			net->activityCounter[i] =
+			  max(0.1, min(10.0, net->activityCounter[i]));
+		}
+	}
+
 	delete env;
-	return fitness;
+	return bp::make_tuple(fitness, env->hero.location.x, env->hero.location.y);
 }
 
 np::ndarray ReturnActivityCounter()
@@ -93,8 +116,8 @@ np::ndarray ReturnActivityCounter()
 	np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<double>());
 	if (net)
 	{
-		std::copy(net->activityCounter, net->activityCounter + net->numHidden,
-		          reinterpret_cast<double*>(result.get_data()));
+		copy(net->activityCounter, net->activityCounter + net->numHidden,
+		     reinterpret_cast<double*>(result.get_data()));
 	}
 	return result;
 }
@@ -113,10 +136,16 @@ int GetNetworkHiddenUnitCount()
 	return net->numHidden;
 }
 
+void SetMazePath(const char *_maze_path)
+{
+	strcpy(maze_path, _maze_path);
+}
+
 BOOST_PYTHON_MODULE(maze_lib)
 {
 	np::initialize();
 	bp::def("SetUp", SetUp);
+	bp::def("SetMazePath", SetMazePath);
 	bp::def("SetVerbosity", SetVerbosity);
 	bp::def("EvalNetwork", EvalNetwork);
 	bp::def("ReturnActivityCounter", ReturnActivityCounter);

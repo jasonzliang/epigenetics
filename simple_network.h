@@ -25,8 +25,7 @@ public:
 	int numWeights;
 	bool useAC, recurrent;
 	float *weightArray, *inputUnits, *hiddenUnits, *outputUnits, *recurrentUnits;
-	double *activityCounter;
-	bool *hiddenMask;
+	double *activityCounter, *tempActivityCounter;
 
 	Network(const int _i, const int _h, const int _o, const bool _useAC = false,
 	        const bool _recurrent = false):
@@ -48,7 +47,7 @@ public:
 		this->recurrentUnits = new float[this->numHidden];
 
 		this->activityCounter = new double[this->numHidden];
-		this->hiddenMask = new bool[this->numHidden];
+		this->tempActivityCounter = new double[this->numHidden];
 		this->weightArray = new float[this->numWeights];
 
 		for (int i = 0; i < this->numWeights; ++i)
@@ -58,8 +57,8 @@ public:
 
 		for (int i = 0; i < this->numHidden; ++i)
 		{
-			this->activityCounter[i] = 0.00001;
-			this->hiddenMask[i] = true;
+			this->activityCounter[i] = 1.0;
+			this->tempActivityCounter[i] = 0.0;
 		}
 	}
 
@@ -71,8 +70,8 @@ public:
 		delete[] this->recurrentUnits;
 
 		delete[] this->activityCounter;
+		delete[] this->tempActivityCounter;
 		delete[] this->weightArray;
-		delete[] this->hiddenMask;
 	}
 
 	float inline Sigmoid(const float _input) const
@@ -95,56 +94,28 @@ public:
 		{
 			this->weightArray[i] =
 			  static_cast<float>(*(reinterpret_cast<double*>(arr_data + i * stride)));
-			// std::cout << this->weightArray[i] << " ";
 		}
-		// std::cout << std::endl;
 
 		arr_data = _activity.get_data();
 		stride = _activity.strides(0);
+		double mean = 0.0;
 		for (int i = 0; i < _activity.shape(0); ++i)
 		{
 			this->activityCounter[i] =
 			  *(reinterpret_cast<double*>(arr_data + i * stride));
-			// std::cout << this->activityCounter[i] << " ";
+			mean += this->activityCounter[i];
+			// we need to reset the temp activity counter
+			this->tempActivityCounter[i] = 0.0;
 		}
-		// std::cout << std::endl;
-
-		this->SetHiddenMask(_reverse);
+		mean /= static_cast<double>(this->numHidden);
+		// we normalize activity counter by dividng by its mean
+		for (int i = 0; i < _activity.shape(0); ++i)
+		{
+			this->activityCounter[i] /= mean;
+		}
 	}
 
-	// if reversed is set to true, then most active hidden neurons have highest
-	// chance of being enabled, otherwise opposite is true
-	void SetHiddenMask(const bool _reverse)
-	{
-		timespec ts;
-		clock_gettime(CLOCK_REALTIME, &ts);
-		reseed(ts.tv_nsec);
-
-		float sum = 0.0;
-		for (int i = 0; i < numHidden; ++i)
-		{
-			sum += static_cast<float>(this->activityCounter[i]);
-		}
-		for (int i = 0; i < numHidden; ++i)
-		{
-			const float prob = static_cast<float>(this->activityCounter[i]) / sum;
-			const float r = static_cast <float> (lrand48()) /
-			                static_cast <float> (RAND_MAX);
-
-			if (r < prob)
-			{
-				this->hiddenMask[i] = _reverse;
-			}
-			else
-			{
-				this->hiddenMask[i] = !_reverse;
-			}
-			// std::cout << this->hiddenMask[i] << " ";
-		}
-		// std::cout << std::endl;
-	}
-
-	void UpdateActivityCounter()
+	void UpdateTempActivityCounter()
 	{
 		int maxIndex = -1;
 		float maxValue = -1.0;
@@ -157,7 +128,7 @@ public:
 				maxValue = temp;
 			}
 		}
-		this->activityCounter[maxIndex] += 0.00001;
+		this->tempActivityCounter[maxIndex] += 1.0;
 	}
 
 	void Activate()
@@ -166,19 +137,17 @@ public:
 
 		for (int i = 0; i < numHidden; ++i)
 		{
-			if (this->useAC && !this->hiddenMask[i])
+			sum = 0.0;
+			for (int j = 0; j < this->numInput; ++j)
 			{
-				this->hiddenUnits[i] = 0.0;
+				sum += this->weightArray[j + i * this->numInput] *
+				       this->inputUnits[j];
 			}
-			else
+			this->hiddenUnits[i] = this->TanH(sum);
+			if (this->useAC)
 			{
-				sum = 0.0;
-				for (int j = 0; j < this->numInput; ++j)
-				{
-					sum += this->weightArray[j + i * this->numInput] *
-					       this->inputUnits[j];
-				}
-				this->hiddenUnits[i] = this->TanH(sum);
+				this->hiddenUnits[i] *= static_cast<float>(this->activityCounter[i]);
+				// std::cout << this->hiddenUnits[i] << " ";
 			}
 		}
 
@@ -195,7 +164,7 @@ public:
 		// and increment its counter
 		if (this->useAC)
 		{
-			this->UpdateActivityCounter();
+			this->UpdateTempActivityCounter();
 		}
 
 		const int offset = this->numHidden * this->numInput;
@@ -206,7 +175,6 @@ public:
 			{
 				sum += this->weightArray[j + (i * this->numHidden) + offset]
 				       * this->hiddenUnits[j];
-				// std::cout << j + (i * this->numHidden) + offset << std::endl;
 			}
 			this->outputUnits[i] = this->TanH(sum);
 		}
