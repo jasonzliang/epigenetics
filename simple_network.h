@@ -21,11 +21,20 @@ void reseed(int val)
 class Network
 {
 public:
-	int numInput, numHidden, numOutput;
+	int numInput;
+	int numHidden;
+	int numOutput;
 	int numWeights;
-	bool useAC, recurrent;
-	float *weightArray, *inputUnits, *hiddenUnits, *outputUnits, *recurrentUnits;
-	double *activityCounter, *tempActivityCounter;
+
+	bool useAC;
+	bool recurrent;
+
+	float *weightArray;
+	float *inputUnits;
+	float *hiddenUnits;
+	float *outputUnits;
+	float *recurrentUnits;
+	float *hebbianActivity;
 
 	Network(const int _i, const int _h, const int _o, const bool _useAC = false,
 	        const bool _recurrent = false):
@@ -46,19 +55,13 @@ public:
 		this->outputUnits = new float[this->numOutput];
 		this->recurrentUnits = new float[this->numHidden];
 
-		this->activityCounter = new double[this->numHidden];
-		this->tempActivityCounter = new double[this->numHidden];
+		this->hebbianActivity = new float[this->numWeights];
 		this->weightArray = new float[this->numWeights];
 
 		for (int i = 0; i < this->numWeights; ++i)
 		{
 			this->weightArray[i] = 0.0;
-		}
-
-		for (int i = 0; i < this->numHidden; ++i)
-		{
-			this->activityCounter[i] = 1.0;
-			this->tempActivityCounter[i] = 0.0;
+			this->hebbianActivity[i] = 0.0;
 		}
 	}
 
@@ -69,8 +72,7 @@ public:
 		delete[] this->outputUnits;
 		delete[] this->recurrentUnits;
 
-		delete[] this->activityCounter;
-		delete[] this->tempActivityCounter;
+		delete[] this->hebbianActivity;
 		delete[] this->weightArray;
 	}
 
@@ -84,9 +86,9 @@ public:
 		return tanh(_input);
 	}
 
-	void SetWeightAndActivityCounter(boost::numpy::ndarray &_weights,
-	                                 boost::numpy::ndarray &_activity,
-	                                 const bool _reverse = false)
+	void SetWeightAndActivity(boost::numpy::ndarray &_weights)
+	// boost::numpy::ndarray &_activity,
+	// const bool _reverse = false)
 	{
 		char* arr_data = _weights.get_data();
 		int stride = _weights.strides(0);
@@ -94,41 +96,19 @@ public:
 		{
 			this->weightArray[i] =
 			  static_cast<float>(*(reinterpret_cast<double*>(arr_data + i * stride)));
+
+			// reset hebbian activity counter
+			this->hebbianActivity[i] = 0.0;
 		}
 
-		arr_data = _activity.get_data();
-		stride = _activity.strides(0);
-		double mean = 0.0;
-		for (int i = 0; i < _activity.shape(0); ++i)
-		{
-			this->activityCounter[i] =
-			  *(reinterpret_cast<double*>(arr_data + i * stride));
-			mean += this->activityCounter[i];
-			// we need to reset the temp activity counter
-			this->tempActivityCounter[i] = 0.0;
-		}
-		mean /= static_cast<double>(this->numHidden);
-		// we normalize activity counter by dividng by its mean
-		for (int i = 0; i < _activity.shape(0); ++i)
-		{
-			this->activityCounter[i] /= mean;
-		}
-	}
+		// arr_data = _activity.get_data();
+		// stride = _activity.strides(0);
 
-	void UpdateTempActivityCounter()
-	{
-		int maxIndex = -1;
-		float maxValue = -1.0;
-		for (int i = 0; i < this->numHidden; ++i)
-		{
-			const float temp = fabs(this->hiddenUnits[i]);
-			if (temp > maxValue)
-			{
-				maxIndex = i;
-				maxValue = temp;
-			}
-		}
-		this->tempActivityCounter[maxIndex] += 1.0;
+		// for (int i = 0; i < _activity.shape(0); ++i)
+		// {
+		// 	this->hebbianActivity[i] =
+		// 	  static_cast<float>(*(reinterpret_cast<double*>(arr_data + i * stride)));
+		// }
 	}
 
 	void Activate()
@@ -144,10 +124,18 @@ public:
 				       this->inputUnits[j];
 			}
 			this->hiddenUnits[i] = this->TanH(sum);
+
+			// storing hebbian updates
 			if (this->useAC)
 			{
-				this->hiddenUnits[i] *= static_cast<float>(this->activityCounter[i]);
-				// std::cout << this->hiddenUnits[i] << " ";
+				for (int j = 0; j < this->numInput; ++j)
+				{
+					float update = this->hiddenUnits[i] *
+					               (this->inputUnits[j] - this->hiddenUnits[i] *
+					                this->weightArray[j + i * this->numInput]);
+					this->hebbianActivity[j + i * this->numInput] += update;
+					// cout << "update: " << update << endl;
+				}
 			}
 		}
 
@@ -157,14 +145,6 @@ public:
 			{
 				this->inputUnits[i] = this->hiddenUnits[i];
 			}
-		}
-
-		// we find out which hidden unit is most active
-		// (ie it has the largest output value)
-		// and increment its counter
-		if (this->useAC)
-		{
-			this->UpdateTempActivityCounter();
 		}
 
 		const int offset = this->numHidden * this->numInput;
@@ -177,6 +157,19 @@ public:
 				       * this->hiddenUnits[j];
 			}
 			this->outputUnits[i] = this->TanH(sum);
+
+			// storing hebbian updates
+			if (this->useAC)
+			{
+				for (int j = 0; j < this->numHidden; ++j)
+				{
+					float update = this->outputUnits[i] *
+					               (this->hiddenUnits[j] - this->outputUnits[i] *
+					                this->weightArray[j + (i * this->numHidden) + offset]);
+					this->hebbianActivity[j + (i * this->numHidden) + offset] += update;
+
+				}
+			}
 		}
 	}
 };

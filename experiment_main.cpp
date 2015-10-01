@@ -12,8 +12,7 @@ namespace np = boost::numpy;
 
 Network *net = NULL;
 bool verbose = false;
-char maze_path[500]
-  = "/home/jason/Desktop/Dropbox/fall2015/epigenetics/easy_maze.txt";
+char maze_path[500] = "easy_maze.txt";
 
 
 //execute a timestep of the maze simulation evaluation
@@ -31,11 +30,16 @@ double MazesimStep(Environment* _env, Network * _net)
 	return dist;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-	Environment *env = new Environment(
-	  "/home/jason/Desktop/Dropbox/fall2015/epigenetics/easy_maze.txt");
-	Network *net = new Network(11, 8, 2, false, false);
+	if (argc != 2)
+	{
+		cout << "usage: ./maze_exec [path_to_maze_file]" << endl;
+		exit(1);
+	}
+
+	Environment *env = new Environment(argv[1]);
+	Network *net = new Network(11, 8, 2, true, false);
 
 	const int timesteps = 400;
 	double fitness = 0.0;
@@ -70,12 +74,12 @@ void SetVerbosity(const bool _verbose)
 	verbose = _verbose;
 }
 
-bp::tuple EvalNetwork(np::ndarray &_genes, np::ndarray &_ac,
-                  double successThres = 295.0)
+bp::tuple EvalNetwork(np::ndarray &_genes,
+                      double successThres = 295.0)
 {
 	if (!net)
 		return bp::make_tuple();
-	net->SetWeightAndActivityCounter(_genes, _ac);
+	net->SetWeightAndActivity(_genes);
 	Environment *env = new Environment(maze_path);
 
 	const int timesteps = 400;
@@ -91,33 +95,57 @@ bp::tuple EvalNetwork(np::ndarray &_genes, np::ndarray &_ac,
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
 
-	// if trial is successful, activity counter gets larger, otherwise gets
-	// smaller
+	// update network weights using hebbian learning
 	if (net->useAC)
 	{
-		double base = 0.999;
-		if (env->hero.location.y > 70.0 && fitness > successThres)
-			base = 1.001;
-		for (int i = 0; i < net->numHidden; ++i)
+		float learningRate = 0.0;
+		if (fitness > successThres)
+			learningRate = 0.05;
+		// float learningRate = pow(fitness / 300.0, 4);
+		// we normalize net->hebbianAcitivty so largest abs value is 1
+		float maxAbsValue = -1;
+		for (int i = 0; i < net->numWeights; ++i)
 		{
-			net->activityCounter[i] *= pow(base, net->tempActivityCounter[i]);
-			net->activityCounter[i] =
-			  max(0.1, min(10.0, net->activityCounter[i]));
+			if (fabs(net->hebbianActivity[i]) > maxAbsValue)
+			{
+				maxAbsValue = fabs(net->hebbianActivity[i]);
+			}
 		}
+
+		// cout << "learning rate: " << learningRate << endl;
+		// cout << "maxAbsValue: " << maxAbsValue << endl;
+		for (int i = 0; i < net->numWeights; ++i)
+		{
+			float update = learningRate *
+			                       (net->hebbianActivity[i] / maxAbsValue);
+			net->weightArray[i] += update;
+			net->weightArray[i] = max(-12.0f, min(12.0f, net->weightArray[i]));
+			// cout << update << " ";
+			// cout << net->weightArray[i] << " ";
+		}
+		// cout << endl;
 	}
 
 	delete env;
 	return bp::make_tuple(fitness, env->hero.location.x, env->hero.location.y);
 }
 
-np::ndarray ReturnActivityCounter()
+np::ndarray ReturnWeights()
 {
-	Py_intptr_t shape[1] = { net->numHidden };
-	np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<double>());
+	Py_intptr_t shape[1] = { net->numWeights };
+	np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<float>());
 	if (net)
 	{
-		copy(net->activityCounter, net->activityCounter + net->numHidden,
-		     reinterpret_cast<double*>(result.get_data()));
+		if (verbose)
+		{
+			for (int i = 0; i < net->numWeights; ++i)
+			{
+				cout << net->weightArray[i] << " ";
+			}
+			cout << endl;
+		}
+		copy(net->weightArray, net->weightArray + net->numWeights,
+		     reinterpret_cast<float*>(result.get_data()));
 	}
 	return result;
 }
@@ -148,7 +176,7 @@ BOOST_PYTHON_MODULE(maze_lib)
 	bp::def("SetMazePath", SetMazePath);
 	bp::def("SetVerbosity", SetVerbosity);
 	bp::def("EvalNetwork", EvalNetwork);
-	bp::def("ReturnActivityCounter", ReturnActivityCounter);
+	bp::def("ReturnWeights", ReturnWeights);
 	bp::def("GetNetworkWeightCount", GetNetworkWeightCount);
 	bp::def("GetNetworkHiddenUnitCount", GetNetworkHiddenUnitCount);
 }

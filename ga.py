@@ -37,8 +37,6 @@ class genetic(object):
     self.numGen = self.numEval = 0
     self.fitness = np.zeros(self.popSize) + 1e-12
     self.population = np.random.uniform(-self.initRange, self.initRange, (self.popSize, self.genomeSize))
-    self.activityCounter = np.ones((self.popSize, self.hiddenSize))
-    # assert(self.activityCounter.dtype == np.float64)
 
   def isTerminal(self):
     return self.numEval > self.maxEvals
@@ -70,11 +68,13 @@ class genetic(object):
     a[r] += x[r]
     return a
   
-  def getFitness(self, genome, ac):
+  def getFitness(self, genome):
     self.numEval += 1
-    fitness, x, y = maze_lib.EvalNetwork(genome, ac, np.percentile(self.fitness, 75))
-    ac = maze_lib.ReturnActivityCounter()
-    return fitness, ac
+    fitness, x, y = maze_lib.EvalNetwork(genome,
+      np.percentile(self.fitness, 75))
+    newGenome = maze_lib.ReturnWeights()
+    newGenome = newGenome.astype(np.float64)
+    return fitness, newGenome
 
   def getBestFitness(self):
     return np.max(self.fitness)
@@ -111,7 +111,6 @@ class genetic(object):
     indices = np.argsort(self.fitness)
     self.calculateStats()
     newPopulation = self.population[indices,:]
-    newActivityCounter = self.activityCounter[indices,:]
       
     for i in xrange(0,self.replacementRate,2):
       a_i = self.fitnessSelection()
@@ -125,43 +124,31 @@ class genetic(object):
       
       newPopulation[i,:] = a
       newPopulation[i+1,:] = b
-
-      a_AC = self.activityCounter[a_i,:]
-      b_AC = self.activityCounter[b_i,:]
-      newActivityCounter[i,:] = (a_AC + b_AC) * 0.5
-      newActivityCounter[i+i,:] = (b_AC + a_AC) * 0.5
     
-    self.activityCounterSnapShot = np.copy(newActivityCounter)
     for i in xrange(self.replacementRate):
-      self.fitness[i], newActivityCounter[i,:] = self.getFitness(newPopulation[i,:], newActivityCounter[i,:])
+      self.fitness[i], newPopulation[i,:] = self.getFitness(newPopulation[i,:])
 
     self.population = newPopulation
-    self.activityCounter = newActivityCounter
     self.numGen += 1
 
   def printStats(self, printGenome=False, printAC=True):
     bestFitness = np.max(self.fitness)
     meanFitness = np.mean(self.fitness)
     minFitness = np.min(self.fitness)
-    print "gen: " + str(self.numGen) + " eval: " + str(self.numEval) + " bestFitness: " + str(bestFitness) + " avgFitness: " + str(meanFitness) + " minFitness: " + str(minFitness)
+    print "gen: " + str(self.numGen) + " eval: " + str(self.numEval) + \
+      " bestFitness: " + str(bestFitness) + " avgFitness: " + str(meanFitness) + \
+      " minFitness: " + str(minFitness)
     if printGenome:
       self.bestGenome = self.population[np.argmax(self.fitness),:]
       print "best genome: " + str(self.bestGenome)
-    if printAC:
-      self.bestAC = self.activityCounterSnapShot[np.argmax(self.fitness),:]
-      print "best activity counter: " + str(self.bestAC)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testMulti():
-  testGA(useAC=False, recurrent=False)
-  testGA(useAC=False, recurrent=True)
-  testGA(useAC=True, recurrent=False)
-  testGA(useAC=True, recurrent=True)
-
-def testGA(nTrials=50, nGen=250, useAC=False, recurrent=False, maze_file = "medium_maze.txt"):
+def testGA(nTrials=50, nGen=250, useAC=False, recurrent=True, 
+  maze_file = "easy_maze4.txt", verbose=False):
 
   maze_lib.SetUp(useAC, recurrent)
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
+  maze_lib.SetVerbosity(verbose)
 
   gen = None
   avgBestFit = []
@@ -175,9 +162,9 @@ def testGA(nTrials=50, nGen=250, useAC=False, recurrent=False, maze_file = "medi
     for i in xrange(nGen):
       ga.step()
       if ga.numGen % 5 == 0:
-        data.append(ga.printStats(printGenome=False))
+        data.append(ga.printStats(printGenome=True))
     ga.printStats(printGenome=True)
-    fitness, x, y = maze_lib.EvalNetwork(ga.bestGenome, ga.bestAC, 0)
+    fitness, x, y = maze_lib.EvalNetwork(ga.bestGenome, 0)
     endpts.append((x,y))
 
     if not gen:
@@ -195,9 +182,9 @@ def testGA(nTrials=50, nGen=250, useAC=False, recurrent=False, maze_file = "medi
   plt.ylabel("fitness")
   plt.legend(loc='lower right')
   plt.grid()
-  plt.savefig(maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_graph.png", bbox_inches="tight")
+  plt.savefig(str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_graph.png", bbox_inches="tight")
 
-  testmaze.drawMaze(maze_file, endpts, maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_vis")
+  testmaze.drawMaze(maze_file, endpts, str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_vis")
   
 if __name__ == "__main__":
   testGA()
