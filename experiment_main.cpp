@@ -129,8 +129,8 @@ bp::list EvalNetwork(np::ndarray &_genes,
 		{
 			float update = learningRate *
 			               (net->hebbianActivity[i] / maxAbsValue);
-			// update = max(-0.25f * net->weightArray[i], min(0.25f * net->weightArray[i],
-			//              update));
+			update = max(-0.25f * net->weightArray[i], min(0.25f * net->weightArray[i],
+			             update));
 			net->weightArray[i] += update;
 			net->weightArray[i] = max(-12.0f, min(12.0f, net->weightArray[i]));
 			// cout << update << " ";
