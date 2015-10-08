@@ -14,7 +14,7 @@ maze_lib.SetUp(False, False)
 class genetic(object):
   def __init__(self, genomeSize, hiddenSize, popMax=1000, 
                parameters=[0.2, 0.3, 0.5, 0.5, 1.0, 0.15],
-               maxEvals=22000, useScaling=False, **keywords):
+               maxEvals=22000, useScaling=False, draw=False, **keywords):
     print "genome size: ", genomeSize
     print "hidden size: ", hiddenSize
     self.useScaling = useScaling
@@ -22,6 +22,7 @@ class genetic(object):
     self.genomeSize = genomeSize
     self.hiddenSize = hiddenSize
     self.maxEvals = maxEvals
+    self.draw = draw
 
     self.setParameters(parameters)    
     self.reset()
@@ -70,11 +71,40 @@ class genetic(object):
   
   def getFitness(self, genome):
     self.numEval += 1
+    if self.draw and random.random() < 0.003:
+      paths = []
+      endpts = []
+      maze_lib.SetVerbosity(True)
+      dataBefore = maze_lib.EvalNetwork(genome,
+        np.percentile(self.fitness, 75))
+      newGenome = maze_lib.ReturnWeights()
+      newGenome = newGenome.astype(np.float64)
+      dataAfter = maze_lib.EvalNetwork(newGenome,
+        np.percentile(self.fitness, 75))
+      paths.append(dataBefore[3:])
+      endpts.append((dataBefore[1], dataBefore[2]))
+      paths.append(dataAfter[3:])
+      endpts.append((dataAfter[1], dataAfter[2]))
+      maze_lib.SetVerbosity(False)
+
+      print "drawing before and after hebbian learning"
+      testmaze.drawMaze("easy_maze4.txt", endpts, paths, 
+        str(self.numEval) + "_comp", 
+        markerStyle = ['.', 'x'], lineColor = ['r', 'g'])
+      update = newGenome - genome
+      plt.clf()
+      plt.hist(update, 20, color='green', alpha=0.8)
+      plt.title("Histogram of Weight Updates")
+      plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
+
+      return dataBefore[0], newGenome
+
     fitness, x, y = maze_lib.EvalNetwork(genome,
       np.percentile(self.fitness, 75))
     newGenome = maze_lib.ReturnWeights()
     newGenome = newGenome.astype(np.float64)
     return fitness, newGenome
+
 
   def getBestFitness(self):
     return np.max(self.fitness)
@@ -138,34 +168,41 @@ class genetic(object):
     print "gen: " + str(self.numGen) + " eval: " + str(self.numEval) + \
       " bestFitness: " + str(bestFitness) + " avgFitness: " + str(meanFitness) + \
       " minFitness: " + str(minFitness)
+    self.bestGenome = self.population[np.argmax(self.fitness),:]
     if printGenome:
-      self.bestGenome = self.population[np.argmax(self.fitness),:]
       print "best genome: " + str(self.bestGenome)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testGA(nTrials=50, nGen=250, useAC=False, recurrent=True, 
-  maze_file = "easy_maze4.txt", verbose=False):
+def testGA(nTrials=1, nGen=200, useAC=True, recurrent=False, 
+  maze_file = "easy_maze4.txt", draw=True):
 
   maze_lib.SetUp(useAC, recurrent)
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
-  maze_lib.SetVerbosity(verbose)
+  maze_lib.SetVerbosity(False)
 
   gen = None
   avgBestFit = []
   avgMeanFit = []
   endpts = []
+  paths = []
   for k in xrange(nTrials):
     data = []
     ga = genetic(genomeSize=maze_lib.GetNetworkWeightCount(),
       hiddenSize=maze_lib.GetNetworkHiddenUnitCount(),
-      maxEvals=1e308) 
+      maxEvals=1e308, draw=draw) 
     for i in xrange(nGen):
       ga.step()
       if ga.numGen % 5 == 0:
-        data.append(ga.printStats(printGenome=True))
-    ga.printStats(printGenome=True)
-    fitness, x, y = maze_lib.EvalNetwork(ga.bestGenome, 0)
-    endpts.append((x,y))
+        data.append(ga.printStats(printGenome=False))
+    # ga.printStats(printGenome=True)
+
+    maze_lib.SetVerbosity(True)
+    print ga.bestGenome
+    results = maze_lib.EvalNetwork(ga.bestGenome, 0)
+    maze_lib.SetVerbosity(False)
+    fitness = results[0]
+    paths.append(results[3:])
+    endpts.append((results[1], results[2]))
 
     if not gen:
       gen = [x[0] for x in data] 
@@ -174,6 +211,7 @@ def testGA(nTrials=50, nGen=250, useAC=False, recurrent=True,
 
   avgBestFit = np.mean(np.vstack(avgBestFit), axis=0)
   avgMeanFit = np.mean(np.vstack(avgMeanFit), axis=0)
+  plt.figure(figsize=(14,10))
   plt.clf()
   plt.ylim((0, 300))
   plt.plot(gen, avgBestFit, label="best fit")
@@ -182,9 +220,11 @@ def testGA(nTrials=50, nGen=250, useAC=False, recurrent=True,
   plt.ylabel("fitness")
   plt.legend(loc='lower right')
   plt.grid()
-  plt.savefig(str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_graph.png", bbox_inches="tight")
+  plt.savefig(str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + 
+    "_recur" + str(recurrent) + "_graph.png", bbox_inches="tight")
 
-  testmaze.drawMaze(maze_file, endpts, str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + "_recur" + str(recurrent) + "_vis")
+  testmaze.drawMaze(maze_file, endpts, paths, str(time.time()) + "_" + maze_file + 
+    "_ac" + str(useAC) + "_recur" + str(recurrent) + "_vis")
   
 if __name__ == "__main__":
   testGA()

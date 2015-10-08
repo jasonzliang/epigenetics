@@ -74,11 +74,14 @@ void SetVerbosity(const bool _verbose)
 	verbose = _verbose;
 }
 
-bp::tuple EvalNetwork(np::ndarray &_genes,
-                      double successThres = 295.0)
+bp::list EvalNetwork(np::ndarray &_genes,
+                     double successThres = 295.0)
 {
 	if (!net)
-		return bp::make_tuple();
+		return bp::list();
+
+	vector<pair<float, float> > locationHistory;
+	locationHistory.reserve(400);
 	net->SetWeightAndActivity(_genes);
 	Environment *env = new Environment(maze_path);
 
@@ -88,9 +91,15 @@ bp::tuple EvalNetwork(np::ndarray &_genes,
 	for (int i = 0; i < timesteps; i++)
 	{
 		fitness += MazesimStep(env, net);
+		if (verbose)
+		{
+			locationHistory.push_back(
+			  make_pair(env->hero.location.x, env->hero.location.y));
+		}
 	}
-	if (verbose)
-		env->display();
+	// if (verbose)
+	// 	env->display();
+
 	//calculate fitness of individual as closeness to target
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
@@ -98,26 +107,30 @@ bp::tuple EvalNetwork(np::ndarray &_genes,
 	// update network weights using hebbian learning
 	if (net->useAC)
 	{
-		float learningRate = 0.0;
-		if (fitness > successThres)
-			learningRate = 0.05;
-		// float learningRate = pow(fitness / 300.0, 4);
+		// float learningRate = 0.0;
+		// if (fitness > successThres)
+		// 	learningRate = 0.05;
+		float learningRate = pow(fitness / 300.0, 2);
 		// we normalize net->hebbianAcitivty so largest abs value is 1
 		float maxAbsValue = -1;
 		for (int i = 0; i < net->numWeights; ++i)
 		{
-			if (fabs(net->hebbianActivity[i]) > maxAbsValue)
-			{
-				maxAbsValue = fabs(net->hebbianActivity[i]);
-			}
+			maxAbsValue += fabs(net->hebbianActivity[i]);
+			// if (fabs(net->hebbianActivity[i]) > maxAbsValue)
+			// {
+			// 	maxAbsValue = fabs(net->hebbianActivity[i]);
+			// }
 		}
+		maxAbsValue /= net->numWeights;
 
 		// cout << "learning rate: " << learningRate << endl;
 		// cout << "maxAbsValue: " << maxAbsValue << endl;
 		for (int i = 0; i < net->numWeights; ++i)
 		{
 			float update = learningRate *
-			                       (net->hebbianActivity[i] / maxAbsValue);
+			               (net->hebbianActivity[i] / maxAbsValue);
+			// update = max(-0.25f * net->weightArray[i], min(0.25f * net->weightArray[i],
+			//              update));
 			net->weightArray[i] += update;
 			net->weightArray[i] = max(-12.0f, min(12.0f, net->weightArray[i]));
 			// cout << update << " ";
@@ -126,8 +139,21 @@ bp::tuple EvalNetwork(np::ndarray &_genes,
 		// cout << endl;
 	}
 
+	bp::list list;
+	list.append(fitness);
+	list.append(env->hero.location.x);
+	list.append(env->hero.location.y);
+	if (verbose)
+	{
+		for (size_t i = 0; i < locationHistory.size(); i++)
+		{
+			list.append(bp::make_tuple(locationHistory[i].first,
+			                           locationHistory[i].second));
+		}
+	}
+
 	delete env;
-	return bp::make_tuple(fitness, env->hero.location.x, env->hero.location.y);
+	return list;
 }
 
 np::ndarray ReturnWeights()
