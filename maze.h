@@ -351,6 +351,9 @@ public:
     hero.ang_vel += (o1 - 0.5) * 1.0;
     hero.speed += (o2 - 0.5) * 1.0;
 
+    // hero.ang_vel += o1;
+    // hero.speed += o2;
+
     //constraints of speed & angular velocity
     if (hero.speed > 3.0) hero.speed = 3.0;
     if (hero.speed < -3.0) hero.speed = (-3.0);

@@ -1,29 +1,28 @@
-#include <algorithm>
 #include <iostream>
 #include <boost/python.hpp>
 #include <numpy.hpp>
 
 #include "maze.h"
-#include "simple_network.h"
 #include "neural_network.h"
+// #include "simple_network.h"
 
 using namespace std;
 namespace bp = boost::python;
 namespace np = boost::numpy;
 
-Network *net = NULL;
+neural_network *net = NULL;
 bool verbose = false;
 char maze_path[500] = "easy_maze.txt";
 
 
 //execute a timestep of the maze simulation evaluation
-double MazesimStep(Environment* _env, Network * _net)
+double MazesimStep(Environment* _env, neural_network* _net)
 {
-	_env->generate_neural_inputs(_net->inputUnits);
+	_env->generate_neural_inputs(_net->o_i);
 	_net->Activate();
 
 	//use the net's outputs to change heading and velocity of navigator
-	_env->interpret_outputs(_net->outputUnits[0], _net->outputUnits[1]);
+	_env->interpret_outputs(_net->o_k[0], _net->o_k[1]);
 	//update the environment
 	_env->Update();
 
@@ -40,7 +39,7 @@ int main(int argc, char *argv[])
 	}
 
 	Environment *env = new Environment(argv[1]);
-	Network *net = new Network(11, 8, 2, true, false);
+	neural_network *net = new neural_network(11, 8, 2, 0.0);
 
 	const int timesteps = 400;
 	double fitness = 0.0;
@@ -63,11 +62,11 @@ int main(int argc, char *argv[])
 	return fitness;
 }
 
-void SetUp(const bool _acflag, const bool _recurrent)
+void SetUp()
 {
 	if (net)
 		delete net;
-	net = new Network(11, 8, 2, _acflag, _recurrent);
+	net = new neural_network(11, 8, 2, 0.0);
 }
 
 void SetVerbosity(const bool _verbose)
@@ -83,7 +82,7 @@ bp::list EvalNetwork(np::ndarray &_genes,
 
 	vector<pair<float, float> > locationHistory;
 	locationHistory.reserve(400);
-	net->SetWeightAndActivity(_genes);
+	net->SetWeights(_genes);
 	Environment *env = new Environment(maze_path);
 
 	const int timesteps = 400;
@@ -98,47 +97,10 @@ bp::list EvalNetwork(np::ndarray &_genes,
 			  make_pair(env->hero.location.x, env->hero.location.y));
 		}
 	}
-	// if (verbose)
-	// 	env->display();
 
 	//calculate fitness of individual as closeness to target
 	fitness = 300.0 - env->distance_to_target();
 	if (fitness < 0.1) fitness = 0.1;
-
-	// update network weights using hebbian learning
-	if (net->useAC)
-	{
-		// float learningRate = 0.0;
-		// if (fitness > successThres)
-		// 	learningRate = 0.05;
-		float learningRate = pow(fitness / 300.0, 2);
-		// we normalize net->hebbianAcitivty so largest abs value is 1
-		float maxAbsValue = -1;
-		for (int i = 0; i < net->numWeights; ++i)
-		{
-			maxAbsValue += fabs(net->hebbianActivity[i]);
-			// if (fabs(net->hebbianActivity[i]) > maxAbsValue)
-			// {
-			// 	maxAbsValue = fabs(net->hebbianActivity[i]);
-			// }
-		}
-		maxAbsValue /= net->numWeights;
-
-		// cout << "learning rate: " << learningRate << endl;
-		// cout << "maxAbsValue: " << maxAbsValue << endl;
-		for (int i = 0; i < net->numWeights; ++i)
-		{
-			float update = learningRate *
-			               (net->hebbianActivity[i] / maxAbsValue);
-			update = max(-0.25f * net->weightArray[i], min(0.25f * net->weightArray[i],
-			             update));
-			net->weightArray[i] += update;
-			net->weightArray[i] = max(-12.0f, min(12.0f, net->weightArray[i]));
-			// cout << update << " ";
-			// cout << net->weightArray[i] << " ";
-		}
-		// cout << endl;
-	}
 
 	bp::list list;
 	list.append(fitness);
@@ -159,20 +121,11 @@ bp::list EvalNetwork(np::ndarray &_genes,
 
 np::ndarray ReturnWeights()
 {
-	Py_intptr_t shape[1] = { net->numWeights };
+	Py_intptr_t shape[1] = { net->GetNumWeights() };
 	np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<float>());
 	if (net)
 	{
-		if (verbose)
-		{
-			for (int i = 0; i < net->numWeights; ++i)
-			{
-				cout << net->weightArray[i] << " ";
-			}
-			cout << endl;
-		}
-		copy(net->weightArray, net->weightArray + net->numWeights,
-		     reinterpret_cast<float*>(result.get_data()));
+		net->GetWeights(result);
 	}
 	return result;
 }
@@ -181,14 +134,14 @@ int GetNetworkWeightCount()
 {
 	if (!net)
 		return -1;
-	return net->numWeights;
+	return net->GetNumWeights();
 }
 
 int GetNetworkHiddenUnitCount()
 {
 	if (!net)
 		return -1;
-	return net->numHidden;
+	return net->GetNumHiddenUnits();
 }
 
 void SetMazePath(const char *_maze_path)

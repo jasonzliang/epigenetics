@@ -43,7 +43,7 @@ def drawMaze(maze_file = "easy_maze4.txt", endpts = None, paths = None,
   # ax.autoscale()
   # ax.margins(0.1)
   plt.legend(loc="upper left", bbox_to_anchor=(1,1))
-  plt.savefig(outfile + ".png", bbox_inches="tight")
+  plt.savefig(outfile + ".png", bbox_inches="tight", dpi=200)
   # plt.show()
 
 if __name__ == "__main__":

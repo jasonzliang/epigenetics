@@ -1,9 +1,14 @@
+#include <algorithm>
 #include <utility>
 #include <vector>
+#include <boost/python.hpp>
+#include <numpy.hpp>
 
 #include "neural_network.h"
 
 using namespace std;
+namespace bp = boost::python;
+namespace np = boost::numpy;
 
 neural_network::neural_network(int numInput, int numHidden,
                                int numOutput, float learn_rate):
@@ -15,6 +20,8 @@ neural_network::neural_network(int numInput, int numHidden,
 
   h = new hidden_layer(numInput, numHidden);
   o = new hidden_layer(numHidden, numOutput);
+  // h->printWeights(9999);
+  // o->printWeights(9999);
 
   o_i = new float[h->numInputs];
   o_j = new float[h->numHiddenUnits];
@@ -24,7 +31,38 @@ neural_network::neural_network(int numInput, int numHidden,
   delta_j = new float[h->numHiddenUnits];
 }
 
-void neural_network::train(vector<vector<float> > trainingInputs,
+void neural_network::SetWeights(np::ndarray &_weights)
+{
+  char* arr_data = _weights.get_data();
+  int stride = _weights.strides(0);
+  for (int i = 0; i < _weights.shape(0); ++i)
+  {
+    float weight =
+      static_cast<float>(*(reinterpret_cast<double*>(arr_data + i * stride)));
+    if (i < h->numWeights)
+    {
+      h->weights[i] = weight;
+    }
+    else
+    {
+      o->weights[i - h->numWeights] = weight;
+    }
+  }
+  // h->printWeights(9999);
+  // o->printWeights(9999);
+}
+
+void neural_network::GetWeights(np::ndarray &_ndarray)
+{
+  copy(h->weights, h->weights + h->numWeights,
+       reinterpret_cast<float*>(_ndarray.get_data()));
+
+  copy(o->weights, o->weights + o->numWeights,
+       reinterpret_cast<float*>(_ndarray.get_data()) + h->numWeights);
+
+}
+
+void neural_network::Train(vector<vector<float> > trainingInputs,
                            vector<pair<float, float> > trainingTargets,
                            int numOuterIter, int numTrainingExamples)
 {
@@ -33,7 +71,7 @@ void neural_network::train(vector<vector<float> > trainingInputs,
     float sum_squared_error = 0.0;
     for (int j = 0; j < numTrainingExamples; j++)
     {
-      sum_squared_error += backprop(trainingInputs[i],
+      sum_squared_error += Backprop(trainingInputs[i],
                                     trainingTargets[j].first,
                                     trainingTargets[j].second);
     }

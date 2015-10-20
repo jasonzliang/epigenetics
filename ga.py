@@ -9,7 +9,7 @@ import testmaze
 import maze_lib
 
 np.set_printoptions(precision=4, suppress=True, formatter={'all':lambda x: str(x) + ','})
-maze_lib.SetUp(False, False)
+maze_lib.SetUp()
 
 class genetic(object):
   def __init__(self, genomeSize, hiddenSize, popMax=1000, 
@@ -71,40 +71,38 @@ class genetic(object):
   
   def getFitness(self, genome):
     self.numEval += 1
-    if self.draw and random.random() < 0.003:
-      paths = []
-      endpts = []
-      maze_lib.SetVerbosity(True)
-      dataBefore = maze_lib.EvalNetwork(genome,
-        np.percentile(self.fitness, 75))
-      newGenome = maze_lib.ReturnWeights()
-      newGenome = newGenome.astype(np.float64)
-      dataAfter = maze_lib.EvalNetwork(newGenome,
-        np.percentile(self.fitness, 75))
-      paths.append(dataBefore[3:])
-      endpts.append((dataBefore[1], dataBefore[2]))
-      paths.append(dataAfter[3:])
-      endpts.append((dataAfter[1], dataAfter[2]))
-      maze_lib.SetVerbosity(False)
+    # if self.draw and random.random() < 0.003:
+    #   paths = []
+    #   endpts = []
+    #   maze_lib.SetVerbosity(True)
+    #   dataBefore = maze_lib.EvalNetwork(genome,
+    #     np.percentile(self.fitness, 75))
+    #   newGenome = maze_lib.ReturnWeights()
+    #   newGenome = newGenome.astype(np.float64)
+    #   dataAfter = maze_lib.EvalNetwork(newGenome,
+    #     np.percentile(self.fitness, 75))
+    #   paths.append(dataBefore[3:])
+    #   endpts.append((dataBefore[1], dataBefore[2]))
+    #   paths.append(dataAfter[3:])
+    #   endpts.append((dataAfter[1], dataAfter[2]))
+    #   maze_lib.SetVerbosity(False)
 
-      print "drawing before and after hebbian learning"
-      testmaze.drawMaze("easy_maze4.txt", endpts, paths, 
-        str(self.numEval) + "_comp", 
-        markerStyle = ['.', 'x'], lineColor = ['r', 'g'])
-      update = newGenome - genome
-      plt.clf()
-      plt.hist(update, 20, color='green', alpha=0.8)
-      plt.title("Histogram of Weight Updates")
-      plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
-
-      return dataBefore[0], newGenome
+    #   print "drawing before and after hebbian learning"
+    #   testmaze.drawMaze("easy_maze4.txt", endpts, paths, 
+    #     str(self.numEval) + "_comp", 
+    #     markerStyle = ['.', 'x'], lineColor = ['r', 'g'])
+    #   update = newGenome - genome
+    #   plt.clf()
+    #   plt.hist(update, 20, color='green', alpha=0.8)
+    #   plt.title("Histogram of Weight Updates")
+    #   plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
+    #   return dataBefore[0], newGenome
 
     fitness, x, y = maze_lib.EvalNetwork(genome,
       np.percentile(self.fitness, 75))
     newGenome = maze_lib.ReturnWeights()
     newGenome = newGenome.astype(np.float64)
-    return fitness, newGenome
-
+    return fitness, genome
 
   def getBestFitness(self):
     return np.max(self.fitness)
@@ -173,10 +171,10 @@ class genetic(object):
       print "best genome: " + str(self.bestGenome)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testGA(nTrials=30, nGen=200, useAC=True, recurrent=False, 
+def testGA(nTrials=30, nGen=200, backProp = False,
   maze_file = "easy_maze4.txt", draw=False):
 
-  maze_lib.SetUp(useAC, recurrent)
+  maze_lib.SetUp()
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
   maze_lib.SetVerbosity(False)
 
@@ -194,7 +192,6 @@ def testGA(nTrials=30, nGen=200, useAC=True, recurrent=False,
       ga.step()
       if ga.numGen % 5 == 0:
         data.append(ga.printStats(printGenome=False))
-    # ga.printStats(printGenome=True)
 
     maze_lib.SetVerbosity(True)
     print ga.bestGenome
@@ -220,11 +217,11 @@ def testGA(nTrials=30, nGen=200, useAC=True, recurrent=False,
   plt.ylabel("fitness")
   plt.legend(loc='lower right')
   plt.grid()
-  plt.savefig(str(time.time()) + "_" + maze_file + "_ac" + str(useAC) + 
-    "_recur" + str(recurrent) + "_graph.png", bbox_inches="tight")
+  plt.savefig(str(time.time()) + "_" + maze_file + "_bp" + str(backProp) 
+    + "_graph.png", bbox_inches="tight", dpi=200)
 
-  testmaze.drawMaze(maze_file, endpts, paths, str(time.time()) + "_" + maze_file + 
-    "_ac" + str(useAC) + "_recur" + str(recurrent) + "_vis")
+  testmaze.drawMaze(maze_file, endpts, paths, 
+    str(time.time()) + "_" + maze_file + "_bp" + str(backProp) + "_vis")
   
 if __name__ == "__main__":
   testGA()

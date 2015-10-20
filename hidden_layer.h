@@ -10,10 +10,8 @@ public:
   int numInputs;
   int numHiddenUnits;
   int numWeights;
-  int hiddenChunkSize;
-  int inputChunkSize;
-
   float weightRange;
+
   float *weights;
   float *biases;
   float *encode_buffer;
@@ -52,7 +50,22 @@ public:
 
   inline float sigmoidTransform(float x)
   {
-    return 1 / (1 + exp(-1 * x));
+    return 1.0 / (1.0 + exp(-1.0 * x));
+  }
+
+  inline float sigmoidDerivative(float x)
+  {
+    return x * (1.0 - x);
+  }
+
+  inline float tanhTransform(float x)
+  {
+    return tanh(x);
+  }
+
+  inline float tanhDerivative(float x)
+  {
+    return 1 - (x * x);
   }
 
   inline void setWeights(float *newWeights)

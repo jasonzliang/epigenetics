@@ -12,7 +12,8 @@ hidden_layer::hidden_layer(int numInputs, int numHiddenUnits):
   numInputs(numInputs),
   numHiddenUnits(numHiddenUnits)
 {
-  weightRange = 1.0 / sqrt(numInputs);
+  // weightRange = 1.0 / sqrt(numInputs);
+  weightRange = 0.0;
   init();
 }
 
@@ -75,7 +76,7 @@ void hidden_layer::encode(float *input, float *output)
     {
       sum += weights[i * numInputs + j] * input[j];
     }
-    output[i] = sigmoidTransform(sum);
+    output[i] = tanhTransform(sum);
   }
 }
 
@@ -89,8 +90,8 @@ float hidden_layer::squared_loss(float *output, float t1, float t2)
 void hidden_layer::compute_delta_output(float *delta, float *o, float t1,
                                         float t2)
 {
-  delta[0] = o[0] * (1.0 - o[0]) * (o[0] - t1);
-  delta[1] = o[1] * (1.0 - o[1]) * (o[1] - t2);
+  delta[0] = tanhDerivative(o[0]) * (o[0] - t1);
+  delta[1] = tanhDerivative(o[1]) * (o[1] - t2);
 }
 
 
@@ -114,7 +115,7 @@ void hidden_layer::compute_delta_hidden(float *delta_curr_layer,
       sum += delta_next_layer[j] * output_layer_weights[j * numHiddenUnits + i];
     }
     delta_curr_layer[i] =
-      output_curr_layer[i] * (1.0 - output_curr_layer[i]) * sum;
+      tanhDerivative(output_curr_layer[i]) * sum;
   }
 }
 

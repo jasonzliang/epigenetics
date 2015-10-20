@@ -15,15 +15,15 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${BOOST_PYTHON_INCLUDE_DIR})
 include_directories(${BOOST_NUMPY_INCLUDE_DIR})
 
-#set(CMAKE_CXX_FLAGS "-std=c++11 -Wall -g")
+# set(CMAKE_CXX_FLAGS "-std=c++11 -Wall -g")
 set(CMAKE_CXX_FLAGS "-std=c++11 -Wall -O3")
 
-add_library(maze_lib SHARED experiment_main.cpp maze.cpp)
+add_library(maze_lib SHARED experiment_main.cpp maze.cpp neural_network.cpp hidden_layer.cpp)
 set_target_properties(maze_lib PROPERTIES PREFIX "" SUFFIX ".so")
 target_link_libraries(maze_lib ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} ${BOOST_NUMPY_LIBRARY} -lrt)
 
-add_executable(maze_exec experiment_main.cpp maze.cpp)
+add_executable(maze_exec experiment_main.cpp maze.cpp neural_network.cpp hidden_layer.cpp)
 target_link_libraries(maze_exec ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} ${BOOST_NUMPY_LIBRARY} -lrt)
 
 set(CMAKE_INSTALL_PREFIX ".")
-#install(TARGETS maze_lib DESTINATION "~/Desktop/Dropbox/fall2015/epigenetics/")
+# install(TARGETS maze_lib DESTINATION "~/Desktop/Dropbox/fall2015/epigenetics/")

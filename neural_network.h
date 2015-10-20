@@ -3,6 +3,8 @@
 
 #include <utility>
 #include <vector>
+#include <boost/python.hpp>
+#include <numpy.hpp>
 
 #include "hidden_layer.h"
 
@@ -20,15 +22,29 @@ public:
 
   neural_network(int numInput, int numHidden, int numOutput, float learn_rate);
 
-  virtual void train(std::vector<std::vector<float> > trainingInputs,
-                     std::vector<std::pair<float, float> > trainingTargets,
-                     int numOuterIter, int numTrainingExamples);
+  void Train(std::vector<std::vector<float> > trainingInputs,
+             std::vector<std::pair<float, float> > trainingTargets,
+             int numOuterIter, int numTrainingExamples);
 
-  virtual float Backprop(std::vector<float> trainingInput, float t1, float t2);
+  float Backprop(std::vector<float> trainingInput, float t1, float t2);
 
-  virtual void Activate();
+  void Activate();
 
-  virtual ~neural_network();
+  void SetWeights(boost::numpy::ndarray &_weights);
+
+  void GetWeights(boost::numpy::ndarray &_ndarray);
+
+  int GetNumWeights()
+  {
+    return this->h->numWeights + this->o->numWeights;
+  }
+
+  int GetNumHiddenUnits()
+  {
+    return this->h->numHiddenUnits;
+  }
+
+  ~neural_network();
 };
 
 #endif
