@@ -123,7 +123,7 @@ public:
 				sum += this->weightArray[j + i * this->numInput] *
 				       this->inputUnits[j];
 			}
-			this->hiddenUnits[i] = this->TanH(sum);
+			this->hiddenUnits[i] = this->Sigmoid(sum);
 
 			// storing hebbian updates
 			if (this->useAC)
@@ -156,7 +156,7 @@ public:
 				sum += this->weightArray[j + (i * this->numHidden) + offset]
 				       * this->hiddenUnits[j];
 			}
-			this->outputUnits[i] = this->TanH(sum);
+			this->outputUnits[i] = this->Sigmoid(sum);
 
 			// storing hebbian updates
 			if (this->useAC)

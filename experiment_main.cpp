@@ -5,6 +5,7 @@
 
 #include "maze.h"
 #include "simple_network.h"
+#include "neural_network.h"
 
 using namespace std;
 namespace bp = boost::python;
