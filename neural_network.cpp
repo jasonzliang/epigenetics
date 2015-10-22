@@ -27,26 +27,25 @@ neural_network::neural_network(int numInput, int numHidden,
   o_j = new float[h->numHiddenUnits];
   o_k = new float[o->numHiddenUnits];
 
-  delta_k = new float[o->numHiddenUnits];
   delta_j = new float[h->numHiddenUnits];
+  delta_k = new float[o->numHiddenUnits];
 }
 
 void neural_network::SetWeights(np::ndarray &_weights)
 {
   char* arr_data = _weights.get_data();
   int stride = _weights.strides(0);
-  for (int i = 0; i < _weights.shape(0); ++i)
+  for (int i = 0; i < h->numWeights; ++i)
   {
-    float weight =
+    h->weights[i] =
       static_cast<float>(*(reinterpret_cast<double*>(arr_data + i * stride)));
-    if (i < h->numWeights)
-    {
-      h->weights[i] = weight;
-    }
-    else
-    {
-      o->weights[i - h->numWeights] = weight;
-    }
+  }
+
+  for (int i = 0; i < o->numWeights; ++i)
+  {
+    o->weights[i] =
+      static_cast<float>(*(reinterpret_cast<double*>(arr_data +
+                           ((i + h->numWeights) * stride))));
   }
   // h->printWeights(9999);
   // o->printWeights(9999);
@@ -71,10 +70,11 @@ void neural_network::Train(vector<vector<float> > trainingInputs,
     float sum_squared_error = 0.0;
     for (int j = 0; j < numTrainingExamples; j++)
     {
-      sum_squared_error += Backprop(trainingInputs[i],
+      sum_squared_error += Backprop(trainingInputs[j],
                                     trainingTargets[j].first,
                                     trainingTargets[j].second);
     }
+    // cout << "total error at epoch " << i+1 << ": " << sum_squared_error << endl;
   }
 }
 

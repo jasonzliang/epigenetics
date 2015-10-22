@@ -9,7 +9,7 @@ from matplotlib import collections as mc
 np.set_printoptions(precision=4, suppress=True, formatter={'all':lambda x: str(x) + ','})
 
 def drawMaze(maze_file = "easy_maze4.txt", endpts = None, paths = None, 
-  outfile = None, markerStyle = None, lineColor = None):
+  outfile = None, markerStyle = None, lineColor = None, lineLabels = None):
   if outfile == None:
     outfile = maze_file
   f = open(maze_file)
@@ -33,12 +33,12 @@ def drawMaze(maze_file = "easy_maze4.txt", endpts = None, paths = None,
       label="final pos", s=40, alpha=0.5)
   if paths:
     for i, path in enumerate(paths):
-      if markerStyle and lineColor:
+      if markerStyle and lineColor and lineLabels:
         plt.plot([x[0] for x in path], [x[1] for x in path], linewidth=1,
-        alpha=0.5, marker=markerStyle[i], color=lineColor[i])
+        alpha=0.5, marker=markerStyle[i], color=lineColor[i], label=lineLabels[i])
       else:
         plt.plot([x[0] for x in path], [x[1] for x in path], linewidth=1,
-        alpha=0.25, marker='.', color="r")
+        alpha=0.2, marker='.', color=np.random.rand(3,1))
 
   # ax.autoscale()
   # ax.margins(0.1)

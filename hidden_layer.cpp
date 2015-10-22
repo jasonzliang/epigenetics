@@ -12,8 +12,8 @@ hidden_layer::hidden_layer(int numInputs, int numHiddenUnits):
   numInputs(numInputs),
   numHiddenUnits(numHiddenUnits)
 {
-  // weightRange = 1.0 / sqrt(numInputs);
-  weightRange = 0.0;
+  weightRange = 1.0 / sqrt(numInputs);
+  // weightRange = 0.0;
   init();
 }
 
@@ -42,8 +42,6 @@ void hidden_layer::init()
   {
     biases[i] = 0.0;
   }
-
-  encode_buffer = new float[numHiddenUnits];
 }
 
 void hidden_layer::printWeights(int n)
@@ -137,5 +135,4 @@ hidden_layer::~hidden_layer()
 {
   delete[] weights;
   delete[] biases;
-  delete[] encode_buffer;
 }

@@ -348,11 +348,11 @@ public:
     if (isnan(o1) || isnan(o2))
       cout << "OUTPUT ISNAN" << endl;
 
-    hero.ang_vel += (o1 - 0.5) * 1.0;
-    hero.speed += (o2 - 0.5) * 1.0;
+    // hero.ang_vel += (o1 - 0.5) * 1.0;
+    // hero.speed += (o2 - 0.5) * 1.0;
 
-    // hero.ang_vel += o1;
-    // hero.speed += o2;
+    hero.ang_vel += o1 * 0.5;
+    hero.speed += o2 * 0.5;
 
     //constraints of speed & angular velocity
     if (hero.speed > 3.0) hero.speed = 3.0;

@@ -9,12 +9,12 @@ import testmaze
 import maze_lib
 
 np.set_printoptions(precision=4, suppress=True, formatter={'all':lambda x: str(x) + ','})
-maze_lib.SetUp()
 
 class genetic(object):
   def __init__(self, genomeSize, hiddenSize, popMax=1000, 
-               parameters=[0.2, 0.3, 0.5, 0.5, 1.0, 0.15],
-               maxEvals=22000, useScaling=False, draw=False, **keywords):
+               parameters=[0.1, 0.5, 0.5, 0.5, 2.0, 0.15, 0.5],
+               maxEvals=22000, useScaling=False, draw=False, 
+               useBackprop=False, **keywords):
     print "genome size: ", genomeSize
     print "hidden size: ", hiddenSize
     self.useScaling = useScaling
@@ -23,12 +23,14 @@ class genetic(object):
     self.hiddenSize = hiddenSize
     self.maxEvals = maxEvals
     self.draw = draw
+    self.useBackprop = useBackprop
 
     self.setParameters(parameters)    
     self.reset()
     
   def setParameters(self, parameters):
-    self.mutRate, self.mutAmount, self.crossRate, self.replacementRate, self.initRange, self.popSize = parameters
+    self.mutRate, self.mutAmount, self.crossRate, self.replacementRate, \
+      self.initRange, self.popSize, self.bpProb = parameters
     self.popSize = max(2, int(self.popMax*self.popSize))    
     self.replacementRate = int(math.ceil(self.popSize*self.replacementRate))
     if self.replacementRate > 0 and self.replacementRate % 2 != 0:
@@ -71,38 +73,13 @@ class genetic(object):
   
   def getFitness(self, genome):
     self.numEval += 1
-    # if self.draw and random.random() < 0.003:
-    #   paths = []
-    #   endpts = []
-    #   maze_lib.SetVerbosity(True)
-    #   dataBefore = maze_lib.EvalNetwork(genome,
-    #     np.percentile(self.fitness, 75))
-    #   newGenome = maze_lib.ReturnWeights()
-    #   newGenome = newGenome.astype(np.float64)
-    #   dataAfter = maze_lib.EvalNetwork(newGenome,
-    #     np.percentile(self.fitness, 75))
-    #   paths.append(dataBefore[3:])
-    #   endpts.append((dataBefore[1], dataBefore[2]))
-    #   paths.append(dataAfter[3:])
-    #   endpts.append((dataAfter[1], dataAfter[2]))
-    #   maze_lib.SetVerbosity(False)
-
-    #   print "drawing before and after hebbian learning"
-    #   testmaze.drawMaze("easy_maze4.txt", endpts, paths, 
-    #     str(self.numEval) + "_comp", 
-    #     markerStyle = ['.', 'x'], lineColor = ['r', 'g'])
-    #   update = newGenome - genome
-    #   plt.clf()
-    #   plt.hist(update, 20, color='green', alpha=0.8)
-    #   plt.title("Histogram of Weight Updates")
-    #   plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
-    #   return dataBefore[0], newGenome
-
-    fitness, x, y = maze_lib.EvalNetwork(genome,
-      np.percentile(self.fitness, 75))
-    newGenome = maze_lib.ReturnWeights()
-    newGenome = newGenome.astype(np.float64)
-    return fitness, genome
+    genome_copy = np.copy(genome)
+    fitness, x, y = maze_lib.EvalNetwork(genome, 0)
+    # print genome
+    # sys.exit()
+    # newGenome = maze_lib.ReturnWeights()
+    # newGenome = newGenome.astype(np.float64)
+    return fitness
 
   def getBestFitness(self):
     return np.max(self.fitness)
@@ -134,7 +111,52 @@ class genetic(object):
       self.scaledBestFitness = np.max(self.scaledFitness)
       self.scaledMeanFitness = np.mean(self.scaledFitness)
       self.scaledMinFitness = np.min(self.scaledFitness)
-    
+  
+  def drawBeforeAfterTeach(self, master, student, learned_student, 
+    mazefile="easy_maze4.txt"):
+    if self.draw and random.random() < 1.0/(2.0*float(self.popSize)):
+      paths = []
+      endpts = []
+      maze_lib.SetVerbosity(True)
+      dataMaster = maze_lib.EvalNetwork(master, 0)
+      dataBefore = maze_lib.EvalNetwork(student, 0)
+      dataAfter = maze_lib.EvalNetwork(learned_student, 0)
+      maze_lib.SetVerbosity(False)
+
+      paths.append(dataMaster[3:])
+      paths.append(dataBefore[3:])
+      paths.append(dataAfter[3:])
+      endpts.append((dataMaster[1], dataMaster[2]))
+      endpts.append((dataBefore[1], dataBefore[2]))
+      endpts.append((dataAfter[1], dataAfter[2]))
+
+      print "drawing before and after backprop learning"
+      testmaze.drawMaze(mazefile, endpts, paths, str(self.numEval) + "_comp", 
+        markerStyle=['.', 'x', 's'], lineColor=['b', 'r', 'g'], 
+        lineLabels=['teacher', 'before', 'after'])
+      update = learned_student - student
+      plt.clf()
+      plt.hist(update, 20, color='green', alpha=0.8)
+      plt.title("Histogram of Weight Updates")
+      plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
+
+  def teach(self, master, student, epochs=1):
+    learned_student = maze_lib.Backprop(master, student, epochs)
+    self.drawBeforeAfterTeach(master, student, learned_student)
+    return learned_student
+
+  def teach2(self, frac=0.25, epochs=1):
+    for i in xrange(int(frac * self.popSize)):
+      indices = random.sample(xrange(self.popSize), self.popSize/10)
+      master_index = indices[np.argmax(self.fitness[indices])]
+      student_index = indices[np.argmin(self.fitness[indices])]
+      student = self.population[student_index,:]
+      master = self.population[master_index,:]
+      learned_student = \
+        maze_lib.Backprop(master, student, epochs)
+      self.drawBeforeAfterTeach(master, student, learned_student)
+      self.population[student_index,:] = learned_student
+
   def step(self):      
     indices = np.argsort(self.fitness)
     self.calculateStats()
@@ -143,20 +165,24 @@ class genetic(object):
     for i in xrange(0,self.replacementRate,2):
       a_i = self.fitnessSelection()
       b_i = self.fitnessSelection()
-      a = self.population[a_i,:]
-      b = self.population[b_i,:]
-      a = np.copy(a); b = np.copy(b)
+      p_a = self.population[a_i,:]
+      p_b = self.population[b_i,:]
+      a = np.copy(p_a); b = np.copy(p_b)
       a,b = self.crossOver(a,b)
       a = self.mutate(a)
       b = self.mutate(b)
-      
+      # if self.useBackprop and random.random() < self.bpProb:
+      #   a = self.teach(p_a, a)
+      #   b = self.teach(p_b, b)
       newPopulation[i,:] = a
       newPopulation[i+1,:] = b
     
     for i in xrange(self.replacementRate):
-      self.fitness[i], newPopulation[i,:] = self.getFitness(newPopulation[i,:])
+      self.fitness[i] = self.getFitness(newPopulation[i,:])
 
     self.population = newPopulation
+    if self.useBackprop:
+      self.teach2()
     self.numGen += 1
 
   def printStats(self, printGenome=False, printAC=True):
@@ -171,10 +197,10 @@ class genetic(object):
       print "best genome: " + str(self.bestGenome)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testGA(nTrials=30, nGen=200, backProp = False,
-  maze_file = "easy_maze4.txt", draw=False):
+def testGA(nTrials=30, nGen=50, useBackprop=False,
+  maze_file = "easy_maze4.txt", draw=True, learningRate=0.05):
 
-  maze_lib.SetUp()
+  maze_lib.SetUp(learningRate)
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
   maze_lib.SetVerbosity(False)
 
@@ -184,10 +210,14 @@ def testGA(nTrials=30, nGen=200, backProp = False,
   endpts = []
   paths = []
   for k in xrange(nTrials):
+    # reload(maze_lib)
+    # maze_lib.SetUp(learningRate)
+    # maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
+    # maze_lib.SetVerbosity(False)
     data = []
     ga = genetic(genomeSize=maze_lib.GetNetworkWeightCount(),
       hiddenSize=maze_lib.GetNetworkHiddenUnitCount(),
-      maxEvals=1e308, draw=draw) 
+      maxEvals=1e308, draw=draw, useBackprop=useBackprop) 
     for i in xrange(nGen):
       ga.step()
       if ga.numGen % 5 == 0:
@@ -217,11 +247,13 @@ def testGA(nTrials=30, nGen=200, backProp = False,
   plt.ylabel("fitness")
   plt.legend(loc='lower right')
   plt.grid()
-  plt.savefig(str(time.time()) + "_" + maze_file + "_bp" + str(backProp) 
+  plt.savefig(str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) 
     + "_graph.png", bbox_inches="tight", dpi=200)
 
   testmaze.drawMaze(maze_file, endpts, paths, 
-    str(time.time()) + "_" + maze_file + "_bp" + str(backProp) + "_vis")
+    str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) + "_vis")
+  testmaze.drawMaze(maze_file, endpts, None, 
+    str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) + "_vis2")
   
 if __name__ == "__main__":
   testGA()

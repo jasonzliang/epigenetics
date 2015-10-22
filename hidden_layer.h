@@ -14,7 +14,6 @@ public:
 
   float *weights;
   float *biases;
-  float *encode_buffer;
 
   hidden_layer(int numInputs, int numHiddenUnits);
 

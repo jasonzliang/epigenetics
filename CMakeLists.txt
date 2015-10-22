@@ -9,7 +9,7 @@ set(BOOST_NUMPY_INCLUDE_DIR ~/Desktop/Boost.NumPy/boost)
 find_package(Boost COMPONENTS python REQUIRED)
 find_package(PythonLibs 2.7 REQUIRED)
  
-include_directories(.)
+include_directories(..)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${BOOST_PYTHON_INCLUDE_DIR})
