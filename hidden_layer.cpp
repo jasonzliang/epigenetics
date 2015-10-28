@@ -124,8 +124,9 @@ void hidden_layer::updateWeights(float *delta_curr_layer,
   {
     for (int j = 0; j < numInputs; j++)
     {
-      weights[i * numInputs + j] -=
-        learn_rate * output_prev_layer[j] * delta_curr_layer[i];
+      float update = learn_rate * output_prev_layer[j] * delta_curr_layer[i];
+      // cout << "update: " << update << endl;
+      weights[i * numInputs + j] -= update;
     }
     // biases[i] -= learn_rate * delta_curr_layer[i];
   }

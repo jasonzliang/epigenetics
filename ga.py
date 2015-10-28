@@ -39,7 +39,8 @@ class genetic(object):
   def reset(self):
     self.numGen = self.numEval = 0
     self.fitness = np.zeros(self.popSize) + 1e-12
-    self.population = np.random.uniform(-self.initRange, self.initRange, (self.popSize, self.genomeSize))
+    self.population = np.random.uniform(-self.initRange, self.initRange, 
+      (self.popSize, self.genomeSize))
 
   def isTerminal(self):
     return self.numEval > self.maxEvals
@@ -142,7 +143,9 @@ class genetic(object):
 
   def teach(self, master, student, epochs=1):
     learned_student = maze_lib.Backprop(master, student, epochs)
+    learned_student = learned_student.astype(np.float64)
     self.drawBeforeAfterTeach(master, student, learned_student)
+    # sys.exit()
     return learned_student
 
   def teach2(self, frac=0.25, epochs=1):
@@ -154,6 +157,7 @@ class genetic(object):
       master = self.population[master_index,:]
       learned_student = \
         maze_lib.Backprop(master, student, epochs)
+      learned_student = learned_student.astype(np.float64)
       self.drawBeforeAfterTeach(master, student, learned_student)
       self.population[student_index,:] = learned_student
 
@@ -171,9 +175,9 @@ class genetic(object):
       a,b = self.crossOver(a,b)
       a = self.mutate(a)
       b = self.mutate(b)
-      # if self.useBackprop and random.random() < self.bpProb:
-      #   a = self.teach(p_a, a)
-      #   b = self.teach(p_b, b)
+      if self.useBackprop and random.random() < self.bpProb:
+        a = self.teach(p_a, a)
+        b = self.teach(p_b, b)
       newPopulation[i,:] = a
       newPopulation[i+1,:] = b
     
@@ -181,8 +185,8 @@ class genetic(object):
       self.fitness[i] = self.getFitness(newPopulation[i,:])
 
     self.population = newPopulation
-    if self.useBackprop:
-      self.teach2()
+    # if self.useBackprop:
+    #   self.teach2()
     self.numGen += 1
 
   def printStats(self, printGenome=False, printAC=True):
@@ -197,8 +201,8 @@ class genetic(object):
       print "best genome: " + str(self.bestGenome)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testGA(nTrials=30, nGen=50, useBackprop=False,
-  maze_file = "easy_maze4.txt", draw=True, learningRate=0.05):
+def testGA(nTrials=30, nGen=200, useBackprop=False,
+  maze_file = "easy_maze4.txt", draw=False, learningRate=0.05):
 
   maze_lib.SetUp(learningRate)
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
