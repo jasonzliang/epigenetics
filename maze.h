@@ -335,31 +335,85 @@ public:
     //radar
     for (int j = 0; j < (int)hero.radar.size(); j++)
     {
-      inputs[i + j] = (hero.radar[j]);
-      if (isnan(inputs[i + j]))
+      inputs[1 + i + j] = (hero.radar[j]);
+      if (isnan(inputs[1 + i + j]))
         cout << "NAN in inputs" << endl;
     }
+
+    // cout << (int)hero.rangeFinders.size() << " " << (int)hero.radar.size() << endl;
+    // for (int i =0; i<11; i++)
+    // {
+    //   cout << inputs[i] << " ";
+    // }
+    // cout << endl;
     return;
   }
 
-  //transform neural net outputs into angular velocity and speed
+  // custom output function by jason
+  // transform neural net outputs into angular velocity and speed
   void interpret_outputs(float o1, float o2)
   {
     if (isnan(o1) || isnan(o2))
       cout << "OUTPUT ISNAN" << endl;
 
-    // hero.ang_vel += (o1 - 0.5) * 1.0;
-    // hero.speed += (o2 - 0.5) * 1.0;
-
-    hero.ang_vel += o1 * 0.5;
-    hero.speed += o2 * 0.5;
+    hero.ang_vel = o1 * 15.0;
+    hero.speed = 02 * 3.0;
 
     //constraints of speed & angular velocity
     if (hero.speed > 3.0) hero.speed = 3.0;
     if (hero.speed < -3.0) hero.speed = (-3.0);
-    if (hero.ang_vel > 3.0) hero.ang_vel = 3.0;
-    if (hero.ang_vel < -3.0) hero.ang_vel = (-3.0);
+    if (hero.ang_vel > 15.0) hero.ang_vel = 15.0;
+    if (hero.ang_vel < -15.0) hero.ang_vel = (-15.0);
   }
+
+  // // new output function from mazerobot-python
+  // //transform neural net outputs into angular velocity and speed
+  // void interpret_outputs(float o1, float o2)
+  // {
+  //   if (isnan(o1) || isnan(o2))
+  //     cout << "OUTPUT ISNAN" << endl;
+
+  //   float new_ang_vel=o1*3.0;
+  //   float new_speed=o2*3.0;
+  //   float d_ang = new_ang_vel-hero.ang_vel;
+  //   float d_speed= new_speed-hero.speed;
+
+  //   if(d_ang>=0.2) d_ang=0.2;
+  //   if(d_ang<=-0.2) d_ang=-0.2;
+  //   if(d_speed>=0.2) d_speed=0.2;
+  //   if(d_speed<=-0.2) d_speed=-0.2;
+  //   hero.ang_vel+=d_ang; //(o1-0.5)*6.0;
+  //   hero.speed+=d_speed; //(o2-0.5)*6.0;
+
+  //   //constraints of speed & angular velocity
+  //   if(hero.speed>3.0) hero.speed=3.0;
+  //   if(hero.speed<-3.0) hero.speed=(-3.0);
+  //   if(hero.ang_vel>3.0) hero.ang_vel=3.0;
+  //   if(hero.ang_vel<-3.0) hero.ang_vel=(-3.0);
+  // }
+
+  // original output function
+  // void interpret_outputs(float o1, float o2)
+  // {
+  //   if (isnan(o1) || isnan(o2))
+  //     cout << "OUTPUT ISNAN" << endl;
+
+  //   // hero.ang_vel += (o1 - 0.5) * 1.0;
+  //   // hero.speed += (o2 - 0.5) * 1.0;
+
+  //   // modified by jason
+  //   hero.ang_vel += o1 * 0.5;
+  //   hero.speed += o2 * 0.5;
+
+  //   //constraints of speed & angular velocity
+  //   if (hero.speed > 3.0) hero.speed = 3.0;
+  //   if (hero.speed < -3.0) hero.speed = (-3.0);
+  //   if (hero.ang_vel > 3.0) hero.ang_vel = 3.0;
+  //   if (hero.ang_vel < -3.0) hero.ang_vel = (-3.0);
+
+  //   // cout << "output: " << o1 * 0.5 << " " << o2 * 0.5 << endl;
+  //   // cout << "status: " << hero.speed << " " << hero.ang_vel << endl;
+  // }
 
   //run a time step of the simulation
   void Update()

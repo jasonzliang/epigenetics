@@ -13,7 +13,6 @@ hidden_layer::hidden_layer(int numInputs, int numHiddenUnits):
   numHiddenUnits(numHiddenUnits)
 {
   weightRange = 1.0 / sqrt(numInputs);
-  // weightRange = 0.0;
   init();
 }
 
@@ -33,7 +32,8 @@ void hidden_layer::init()
 
   for (int i = 0; i < numWeights; i++)
   {
-    weights[i] = RandomNumber(-weightRange, weightRange);
+    // weights[i] = RandomNumber(-weightRange, weightRange);
+    weights[i] = 0.0;
   }
 
   biases = new float[numHiddenUnits];

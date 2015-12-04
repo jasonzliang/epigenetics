@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -14,8 +15,8 @@ namespace np = boost::numpy;
 
 neural_network *net = NULL;
 bool verbose = false;
+int timesteps = 400;
 char maze_path[500] = "easy_maze.txt";
-
 
 //execute a timestep of the maze simulation evaluation
 double MazesimStep(Environment* _env, neural_network* _net)
@@ -43,7 +44,6 @@ int main(int argc, char *argv[])
 	Environment *env = new Environment(argv[1]);
 	neural_network *net = new neural_network(11, 8, 2, 0.0);
 
-	const int timesteps = 400;
 	double fitness = 0.0;
 
 	for (int i = 0; i < timesteps; i++)
@@ -64,10 +64,11 @@ int main(int argc, char *argv[])
 	return fitness;
 }
 
-void SetUp(const float _learningRate)
+void SetUp(const float _learningRate, const int _timesteps)
 {
 	if (net)
 		delete net;
+	timesteps = _timesteps;
 	net = new neural_network(11, 8, 2, _learningRate);
 }
 
@@ -76,21 +77,22 @@ void SetVerbosity(const bool _verbose)
 	verbose = _verbose;
 }
 
-bp::list EvalNetwork(np::ndarray &_genes, double successThres = 295.0)
+bp::list EvalNetwork(np::ndarray &_genes)
 {
 	if (!net)
 		return bp::list();
 
 	vector<pair<float, float> > locationHistory;
-	locationHistory.reserve(400);
+	locationHistory.reserve(timesteps);
 	net->SetWeights(_genes);
 	Environment *env = new Environment(maze_path);
 
-	const int timesteps = 400;
 	double fitness = 0.0;
-
-	for (int i = 0; i < timesteps; i++)
+	int i;
+	for (i = 0; i < timesteps; i++)
 	{
+		if (env->distance_to_target() < 5.0)
+			break;
 		fitness += MazesimStep(env, net);
 		if (verbose)
 		{
@@ -100,7 +102,7 @@ bp::list EvalNetwork(np::ndarray &_genes, double successThres = 295.0)
 	}
 
 	//calculate fitness of individual as closeness to target
-	fitness = 300.0 - env->distance_to_target();
+	fitness = (300.0 - env->distance_to_target()) + (400 - i);
 	if (fitness < 0.1) fitness = 0.1;
 
 	bp::list list;
@@ -131,23 +133,34 @@ np::ndarray ReturnWeights()
 	return result;
 }
 
-np::ndarray Backprop(np::ndarray &_master, np::ndarray &_student,
-                     const int _epochs)
+bool sort_out_target(const out_target &a, const out_target &b)
+{
+	return a.diff > b.diff;
+}
+
+bp::tuple Backprop(np::ndarray &_master, np::ndarray &_student,
+                   const int _epochs, const int _numsamples,
+                   const bool _random)
 {
 	if (!net)
-		return ReturnWeights();
-
-	const int timesteps = 400;
+		return bp::tuple();
 
 	net->SetWeights(_master);
 	Environment *env = new Environment(maze_path);
 	vector<vector<float> > inputs;
 	inputs.reserve(timesteps);
-	vector<pair<float, float> > targets;
+
+	out_target prev_target;
+	prev_target.o1 = 0.0;
+	prev_target.o2 = 0.0;
+	prev_target.diff = 0.0;
+	vector<out_target> targets;
 	targets.reserve(timesteps);
 
 	for (int i = 0; i < timesteps; i++)
 	{
+		if (env->distance_to_target() < 5.0)
+			break;
 		env->generate_neural_inputs(net->o_i);
 		vector<float> input;
 		input.reserve(net->h->numInputs);
@@ -159,16 +172,41 @@ np::ndarray Backprop(np::ndarray &_master, np::ndarray &_student,
 		}
 		inputs.push_back(input);
 		net->Activate();
-		targets.push_back(make_pair(net->o_k[0], net->o_k[1]));
+		out_target target;
+		target.o1 = net->o_k[0];
+		target.o2 = net->o_k[1];
+		target.diff = fabs(target.o1 - prev_target.o1) +
+		              fabs(target.o2 - prev_target.o2);
+		target.x = env->hero.location.x;
+		target.y = env->hero.location.y;
+		targets.push_back(target);
 		env->interpret_outputs(net->o_k[0], net->o_k[1]);
 		env->Update();
+		prev_target = target;
 	}
 
-	net->SetWeights(_student);
-	net->Train(inputs, targets, _epochs, timesteps);
+	if (_random)
+	{
+		random_shuffle(targets.begin(), targets.end());
+	}
+	else
+	{
+		sort(targets.begin(), targets.end(), sort_out_target);
+		assert(targets[0].diff > targets[targets.size() - 1].diff);
+	}
+	targets.resize(_numsamples);
 
+	net->SetWeights(_student);
+	net->Train(inputs, targets, _epochs, _numsamples);
+
+
+	bp::list list;
+	for (size_t i = 0; i < targets.size(); ++i)
+	{
+		list.append(bp::make_tuple(targets[i].x, targets[i].y));
+	}
 	delete env;
-	return ReturnWeights();
+	return bp::make_tuple(ReturnWeights(), list);
 }
 
 int GetNetworkWeightCount()

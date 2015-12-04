@@ -8,6 +8,15 @@
 
 #include "hidden_layer.h"
 
+struct out_target
+{
+  float o1;
+  float o2;
+  float diff;
+  float x;
+  float y;
+};
+
 class neural_network
 {
 public:
@@ -23,7 +32,7 @@ public:
   neural_network(int numInput, int numHidden, int numOutput, float learn_rate);
 
   void Train(std::vector<std::vector<float> > trainingInputs,
-             std::vector<std::pair<float, float> > trainingTargets,
+             std::vector<out_target> trainingTargets,
              int numOuterIter, int numTrainingExamples);
 
   float Backprop(std::vector<float> trainingInput, float t1, float t2);

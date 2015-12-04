@@ -11,26 +11,33 @@ import maze_lib
 np.set_printoptions(precision=4, suppress=True, formatter={'all':lambda x: str(x) + ','})
 
 class genetic(object):
-  def __init__(self, genomeSize, hiddenSize, popMax=1000, 
-               parameters=[0.1, 0.5, 0.5, 0.5, 2.0, 0.15, 0.5],
+  def __init__(self, genomeSize, hiddenSize, maze_file, popMax=1000, 
+               parameters=[0.1, 0.5, 0.5, 0.5, 2.0, 0.15],
                maxEvals=22000, useScaling=False, draw=False, 
                useBackprop=False, **keywords):
+    print "maze: ", maze_file
     print "genome size: ", genomeSize
     print "hidden size: ", hiddenSize
+    self.maze_file = maze_file
     self.useScaling = useScaling
     self.popMax = popMax
     self.genomeSize = genomeSize
     self.hiddenSize = hiddenSize
     self.maxEvals = maxEvals
     self.draw = draw
-    self.useBackprop = useBackprop
+    if useBackprop:
+      print "USING BACKPROP!!!!!"
+      self.useBackprop, self.bpProb, self.epochs, self.numSamples, self.randomShuffle \
+        = useBackprop
+    else:
+      self.useBackprop = useBackprop
 
     self.setParameters(parameters)    
     self.reset()
     
   def setParameters(self, parameters):
     self.mutRate, self.mutAmount, self.crossRate, self.replacementRate, \
-      self.initRange, self.popSize, self.bpProb = parameters
+      self.initRange, self.popSize = parameters
     self.popSize = max(2, int(self.popMax*self.popSize))    
     self.replacementRate = int(math.ceil(self.popSize*self.replacementRate))
     if self.replacementRate > 0 and self.replacementRate % 2 != 0:
@@ -75,7 +82,7 @@ class genetic(object):
   def getFitness(self, genome):
     self.numEval += 1
     genome_copy = np.copy(genome)
-    fitness, x, y = maze_lib.EvalNetwork(genome, 0)
+    fitness, x, y = maze_lib.EvalNetwork(genome)
     # print genome
     # sys.exit()
     # newGenome = maze_lib.ReturnWeights()
@@ -113,15 +120,14 @@ class genetic(object):
       self.scaledMeanFitness = np.mean(self.scaledFitness)
       self.scaledMinFitness = np.min(self.scaledFitness)
   
-  def drawBeforeAfterTeach(self, master, student, learned_student, 
-    mazefile="easy_maze4.txt"):
+  def drawBeforeAfterTeach(self, master, student, learned_student, bpPositions):
     if self.draw and random.random() < 1.0/(2.0*float(self.popSize)):
       paths = []
       endpts = []
       maze_lib.SetVerbosity(True)
-      dataMaster = maze_lib.EvalNetwork(master, 0)
-      dataBefore = maze_lib.EvalNetwork(student, 0)
-      dataAfter = maze_lib.EvalNetwork(learned_student, 0)
+      dataMaster = maze_lib.EvalNetwork(master)
+      dataBefore = maze_lib.EvalNetwork(student)
+      dataAfter = maze_lib.EvalNetwork(learned_student)
       maze_lib.SetVerbosity(False)
 
       paths.append(dataMaster[3:])
@@ -132,39 +138,44 @@ class genetic(object):
       endpts.append((dataAfter[1], dataAfter[2]))
 
       print "drawing before and after backprop learning"
-      testmaze.drawMaze(mazefile, endpts, paths, str(self.numEval) + "_comp", 
-        markerStyle=['.', 'x', 's'], lineColor=['b', 'r', 'g'], 
+      testmaze.drawMaze(self.maze_file, endpts, paths, bpPositions,
+        self.maze_file + "_" + str(self.numEval) + "_comp", 
+        markerStyle=['.', 'x', '+'], lineColor=['b', 'r', 'g'], 
         lineLabels=['teacher', 'before', 'after'])
-      update = learned_student - student
-      plt.clf()
-      plt.hist(update, 20, color='green', alpha=0.8)
-      plt.title("Histogram of Weight Updates")
-      plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
+      # update = learned_student - student
+      # plt.clf()
+      # plt.hist(update, 20, color='green', alpha=0.8)
+      # plt.title("Histogram of Weight Updates")
+      # plt.savefig(str(self.numEval) + "_hist.png", bbox_inches="tight")
 
-  def teach(self, master, student, epochs=1):
-    learned_student = maze_lib.Backprop(master, student, epochs)
+  def teach(self, master, student):
+    learned_student, bpPositions = maze_lib.Backprop(master, student, 
+      self.epochs, self.numSamples, self.randomShuffle)
     learned_student = learned_student.astype(np.float64)
-    self.drawBeforeAfterTeach(master, student, learned_student)
+    self.drawBeforeAfterTeach(master, student, learned_student, bpPositions)
+    # print bpPositions
     # sys.exit()
     return learned_student
 
-  def teach2(self, frac=0.25, epochs=1):
+  def teach2(self):
+    frac=self.bpProb/2
     for i in xrange(int(frac * self.popSize)):
       indices = random.sample(xrange(self.popSize), self.popSize/10)
       master_index = indices[np.argmax(self.fitness[indices])]
       student_index = indices[np.argmin(self.fitness[indices])]
       student = self.population[student_index,:]
       master = self.population[master_index,:]
-      learned_student = \
-        maze_lib.Backprop(master, student, epochs)
+      learned_student, bpPositions = \
+        maze_lib.Backprop(master, student, self.epochs, self.numSamples, self.randomShuffle)
       learned_student = learned_student.astype(np.float64)
-      self.drawBeforeAfterTeach(master, student, learned_student)
+      self.drawBeforeAfterTeach(master, student, learned_student, bpPositions)
       self.population[student_index,:] = learned_student
 
   def step(self):      
     indices = np.argsort(self.fitness)
     self.calculateStats()
     newPopulation = self.population[indices,:]
+    newFitness = self.fitness[indices]
       
     for i in xrange(0,self.replacementRate,2):
       a_i = self.fitnessSelection()
@@ -176,15 +187,22 @@ class genetic(object):
       a = self.mutate(a)
       b = self.mutate(b)
       if self.useBackprop and random.random() < self.bpProb:
+        # teaching method using best in population
+        # bestGenome = self.population[np.argmax(self.fitness),:]
+        # a = self.teach(bestGenome, a)
+        # b = self.teach(bestGenome, b)
+
+        # teaching method using parent
         a = self.teach(p_a, a)
         b = self.teach(p_b, b)
       newPopulation[i,:] = a
       newPopulation[i+1,:] = b
     
     for i in xrange(self.replacementRate):
-      self.fitness[i] = self.getFitness(newPopulation[i,:])
+      newFitness[i] = self.getFitness(newPopulation[i,:])
 
     self.population = newPopulation
+    self.fitness = newFitness
     # if self.useBackprop:
     #   self.teach2()
     self.numGen += 1
@@ -201,12 +219,15 @@ class genetic(object):
       print "best genome: " + str(self.bestGenome)
     return self.numGen, self.numEval, bestFitness, meanFitness, minFitness
 
-def testGA(nTrials=30, nGen=200, useBackprop=False,
-  maze_file = "easy_maze4.txt", draw=False, learningRate=0.05):
+def testGA(nTrials=1, nGen=250, useBackprop=(True, 0.5, 2, 25, False),
+  maze_file = "medium_maze.txt", draw=True, learningRate=0.05, timesteps=400):
 
-  maze_lib.SetUp(learningRate)
+  maze_lib.SetUp(learningRate, timesteps)
   maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
   maze_lib.SetVerbosity(False)
+
+  if not useBackprop or not useBackprop[0]:
+    useBackprop = False
 
   gen = None
   avgBestFit = []
@@ -214,6 +235,7 @@ def testGA(nTrials=30, nGen=200, useBackprop=False,
   endpts = []
   paths = []
   for k in xrange(nTrials):
+    print "trial number:", k+1
     # reload(maze_lib)
     # maze_lib.SetUp(learningRate)
     # maze_lib.SetMazePath(os.getcwd() + "/" + maze_file)
@@ -221,7 +243,8 @@ def testGA(nTrials=30, nGen=200, useBackprop=False,
     data = []
     ga = genetic(genomeSize=maze_lib.GetNetworkWeightCount(),
       hiddenSize=maze_lib.GetNetworkHiddenUnitCount(),
-      maxEvals=1e308, draw=draw, useBackprop=useBackprop) 
+      maxEvals=1e308, draw=draw, useBackprop=useBackprop,
+      maze_file=maze_file) 
     for i in xrange(nGen):
       ga.step()
       if ga.numGen % 5 == 0:
@@ -229,7 +252,7 @@ def testGA(nTrials=30, nGen=200, useBackprop=False,
 
     maze_lib.SetVerbosity(True)
     print ga.bestGenome
-    results = maze_lib.EvalNetwork(ga.bestGenome, 0)
+    results = maze_lib.EvalNetwork(ga.bestGenome)
     maze_lib.SetVerbosity(False)
     fitness = results[0]
     paths.append(results[3:])
@@ -240,24 +263,28 @@ def testGA(nTrials=30, nGen=200, useBackprop=False,
     avgBestFit.append([x[2] for x in data])
     avgMeanFit.append([x[3] for x in data])
 
+
+  if draw:
+    return
+
   avgBestFit = np.mean(np.vstack(avgBestFit), axis=0)
   avgMeanFit = np.mean(np.vstack(avgMeanFit), axis=0)
   plt.figure(figsize=(14,10))
   plt.clf()
-  plt.ylim((0, 300))
+  # plt.ylim(ymin=0)
   plt.plot(gen, avgBestFit, label="best fit")
   plt.plot(gen, avgMeanFit, label="avg fit")
   plt.xlabel("generation")
   plt.ylabel("fitness")
   plt.legend(loc='lower right')
   plt.grid()
-  plt.savefig(str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) 
-    + "_graph.png", bbox_inches="tight", dpi=200)
 
-  testmaze.drawMaze(maze_file, endpts, paths, 
-    str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) + "_vis")
-  testmaze.drawMaze(maze_file, endpts, None, 
-    str(time.time()) + "_" + maze_file + "_bp" + str(useBackprop) + "_vis2")
+  out_str = str(time.time()) + "_" + maze_file + "_bp" + \
+    str(useBackprop) + "_t" + str(timesteps)
+  plt.savefig(out_str + "_graph.png", bbox_inches="tight", dpi=200)
+
+  testmaze.drawMaze(maze_file, endpts, paths, outfile=out_str + "_vis")
+  testmaze.drawMaze(maze_file, endpts, None, outfile=out_str + "_vis2")
   
 if __name__ == "__main__":
   testGA()

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <utility>
 #include <vector>
 #include <boost/python.hpp>
@@ -24,6 +25,10 @@ neural_network::neural_network(int numInput, int numHidden,
   // o->printWeights(9999);
 
   o_i = new float[h->numInputs];
+  for (int i = 0; i < h->numInputs; ++i)
+  {
+    o_i[i] = 0.0;
+  }
   o_j = new float[h->numHiddenUnits];
   o_k = new float[o->numHiddenUnits];
 
@@ -62,7 +67,7 @@ void neural_network::GetWeights(np::ndarray &_ndarray)
 }
 
 void neural_network::Train(vector<vector<float> > trainingInputs,
-                           vector<pair<float, float> > trainingTargets,
+                           vector<out_target> trainingTargets,
                            int numOuterIter, int numTrainingExamples)
 {
   for (int i = 0; i < numOuterIter; i++ )
@@ -71,8 +76,8 @@ void neural_network::Train(vector<vector<float> > trainingInputs,
     for (int j = 0; j < numTrainingExamples; j++)
     {
       sum_squared_error += Backprop(trainingInputs[j],
-                                    trainingTargets[j].first,
-                                    trainingTargets[j].second);
+                                    trainingTargets[j].o1,
+                                    trainingTargets[j].o2);
     }
     // cout << "total error at epoch " << i+1 << ": " << sum_squared_error << endl;
   }
